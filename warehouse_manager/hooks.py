@@ -5,6 +5,17 @@ app_description = "Manager QR Scanner"
 app_email = "antigravity@example.com"
 app_license = "mit"
 
+# v15/v16 Compatibility Patch for Workspace AttributeError
+try:
+    from frappe.desk.doctype.workspace.workspace import Workspace
+    if not hasattr(Workspace, "onboarding_list"):
+        # Dynamically inject the missing v15 attributes to satisfy the renderer
+        Workspace.onboarding_list = property(lambda self: [])
+    if not hasattr(Workspace, "onboarding"):
+        Workspace.onboarding = property(lambda self: None)
+except ImportError:
+    pass
+
 # Apps
 # ------------------
 
