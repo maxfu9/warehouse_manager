@@ -451,10 +451,8 @@
             html5QrCode = new Html5Qrcode("reader");
             const config = { 
                 fps: 10, 
-                qrbox: (viewWidth, viewHeight) => {
-                    const size = Math.min(viewWidth, viewHeight) * 0.7;
-                    return { width: size, height: size };
-                }
+                qrbox: { width: 250, height: 250 }, 
+                aspectRatio: 1.0 
             };
             
             html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
