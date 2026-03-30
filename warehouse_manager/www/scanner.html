@@ -129,14 +129,14 @@
             aspect-ratio: 1;
         }
 
-        #reader { width: 100% !important; border: none !important; }
+        #reader { width: 100% !important; border: none !important; display: flex; align-items: center; justify-content: center; }
         #reader video { width: 100% !important; object-fit: cover !important; }
 
         .scanner-controls {
             position: absolute;
             bottom: 20px;
             left: 0;
-            right: 0;
+            width: 100%;
             display: flex;
             justify-content: center;
             gap: 20px;
@@ -437,7 +437,14 @@
 
         function initHub() {
             html5QrCode = new Html5Qrcode("reader");
-            const config = { fps: 10, qrbox: { width: 280, height: 280 }, aspectRatio: 1.0 };
+            const config = { 
+                fps: 10, 
+                qrbox: (viewWidth, viewHeight) => {
+                    const size = Math.min(viewWidth, viewHeight) * 0.7;
+                    return { width: size, height: size };
+                },
+                aspectRatio: 1.0 
+            };
             
             html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
             .then(() => {
