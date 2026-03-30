@@ -25,6 +25,7 @@
  "is_default": 0,
  "is_standard": "Yes",
  "label": "EuroPlast Stock Log",
+ "title": "EuroPlast Stock Log",
  "links": [
   {
    "label": "Stock Movement",
@@ -43,7 +44,7 @@
    "link_to": "Daily Movement Register",
    "link_type": "Report",
    "type": "Link"
-  },
+   },
   {
    "label": "Batch-wise Summary",
    "link_to": "EuroPlast Batch Summary",
