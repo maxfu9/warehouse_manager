@@ -232,6 +232,46 @@
             transform: translateY(0);
             opacity: 1;
         }
+
+        /* Mobile Adjustments */
+        @media (max-width: 480px) {
+            .hub-container { padding: 12px; gap: 12px; }
+            .setup-panel { padding: 16px; margin-bottom: 0; }
+            #reader-wrapper { 
+                border-radius: 16px; 
+                margin: 0 4px; 
+                aspect-ratio: 4/3;
+                height: 300px;
+                max-width: calc(100% - 8px);
+            }
+            
+            #status-card {
+                position: fixed;
+                bottom: 20px;
+                left: 20px;
+                right: 20px;
+                z-index: 1000;
+                background: rgba(15, 23, 42, 0.95);
+                backdrop-filter: blur(15px);
+                border: 1px solid var(--primary);
+                box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+                display: none; /* Controlled by JS */
+                flex-direction: row;
+                align-items: center;
+                gap: 12px;
+                text-align: left;
+                padding: 12px 16px;
+                border-radius: 16px;
+            }
+            .status-icon { 
+                margin: 0; 
+                width: 40px; 
+                height: 40px; 
+                min-width: 40px; 
+                font-size: 20px; 
+            }
+            #status-msg-wrap { flex: 1; }
+        }
         #manual-id {
             flex: 1;
             background: transparent;
@@ -307,11 +347,13 @@
             </div>
         </div>
 
-        <!-- Feedback Card -->
+        <!-- Feedback Card (Floating Toast on Mobile) -->
         <div id="status-card">
             <div id="status-icon" class="status-icon">✓</div>
-            <div id="status-title" style="font-size: 18px; font-weight: 800; margin-bottom: 4px;">Success</div>
-            <div id="status-msg" style="font-size: 14px; color: var(--secondary);">Logged successfully</div>
+            <div id="status-msg-wrap">
+                <div id="status-title" style="font-size: 16px; font-weight: 800; margin-bottom: 2px;">Success</div>
+                <div id="status-msg" style="font-size: 12px; color: var(--secondary);">Logged successfully</div>
+            </div>
         </div>
 
         <!-- Session Stats -->
@@ -574,7 +616,7 @@
             icon.innerText = type === 'error' ? '!' : '✓';
             document.getElementById('status-title').innerText = title;
             document.getElementById('status-msg').innerText = msg;
-            card.style.display = 'block';
+            card.style.display = 'flex';
         }
 
         function hideStatus() { document.getElementById('status-card').style.display = 'none'; }
