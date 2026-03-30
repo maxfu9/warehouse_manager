@@ -27,6 +27,8 @@
  "label": "EuroPlast Stock Log",
  "title": "EuroPlast Stock Log",
  "app": "warehouse_manager",
+ "onboarding": null,
+ "onboarding_list": [],
  "links": [
   {
    "label": "Stock Movement",
@@ -77,7 +79,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-03-29 19:45:00",
+ "modified": "2026-03-30 10:15:00",
  "modified_by": "Administrator",
  "module": "Warehouse Management Hub",
  "name": "EuroPlast Stock Log",
