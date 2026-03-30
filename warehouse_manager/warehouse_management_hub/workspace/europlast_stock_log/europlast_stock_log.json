@@ -26,6 +26,7 @@
  "is_standard": "Yes",
  "label": "EuroPlast Stock Log",
  "title": "EuroPlast Stock Log",
+ "app": "warehouse_manager",
  "links": [
   {
    "label": "Stock Movement",
@@ -44,7 +45,7 @@
    "link_to": "Daily Movement Register",
    "link_type": "Report",
    "type": "Link"
-   },
+  },
   {
    "label": "Batch-wise Summary",
    "link_to": "EuroPlast Batch Summary",
