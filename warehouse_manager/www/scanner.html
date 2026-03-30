@@ -129,14 +129,26 @@
             aspect-ratio: 1;
         }
 
-        #reader { width: 100% !important; border: none !important; display: flex; align-items: center; justify-content: center; }
-        #reader video { width: 100% !important; object-fit: cover !important; }
+        #reader { 
+            width: 100% !important; 
+            height: 100% !important;
+            border: none !important; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            position: relative;
+        }
+        #reader video { 
+            width: 100% !important; 
+            height: 100% !important; 
+            object-fit: cover !important; 
+        }
 
         .scanner-controls {
             position: absolute;
             bottom: 20px;
-            left: 0;
-            width: 100%;
+            left: 50%;
+            transform: translateX(-50%);
             display: flex;
             justify-content: center;
             gap: 20px;
@@ -442,8 +454,7 @@
                 qrbox: (viewWidth, viewHeight) => {
                     const size = Math.min(viewWidth, viewHeight) * 0.7;
                     return { width: size, height: size };
-                },
-                aspectRatio: 1.0 
+                }
             };
             
             html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
