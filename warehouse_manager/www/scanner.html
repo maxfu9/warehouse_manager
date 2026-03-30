@@ -131,17 +131,14 @@
 
         #reader { 
             width: 100% !important; 
-            height: 100% !important;
             border: none !important; 
             display: flex; 
             align-items: center; 
             justify-content: center; 
-            position: relative;
         }
         #reader video { 
             width: 100% !important; 
-            height: 100% !important; 
-            object-fit: cover !important; 
+            object-fit: contain !important; 
         }
 
         .scanner-controls {
@@ -451,8 +448,7 @@
             html5QrCode = new Html5Qrcode("reader");
             const config = { 
                 fps: 10, 
-                qrbox: { width: 250, height: 250 }, 
-                aspectRatio: 1.0 
+                qrbox: 250,
             };
             
             html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
