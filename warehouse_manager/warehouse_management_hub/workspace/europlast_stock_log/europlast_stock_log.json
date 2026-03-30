@@ -1,0 +1,101 @@
+{
+ "charts": [
+  {
+   "chart_name": "Weekly Movement Trend",
+   "label": "Weekly Movement Trend",
+   "width": "Full"
+  },
+  {
+   "chart_name": "Top 5 Products in Stock",
+   "label": "Top 5 Products in Stock",
+   "width": "Half"
+  },
+  {
+   "chart_name": "Customer Dispatch Share",
+   "label": "Customer Dispatch Share",
+   "width": "Half"
+  }
+ ],
+ "creation": "2026-03-29 16:10:00",
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "icon": "octicon octicon-package",
+ "indicator_color": "blue",
+ "is_default": 0,
+ "is_standard": "Yes",
+ "label": "EuroPlast Stock Log",
+ "links": [
+  {
+   "label": "Stock Movement",
+   "link_to": "Stock Log",
+   "link_type": "DocType",
+   "type": "Link"
+  },
+  {
+   "label": "Current Inventory Detail",
+   "link_to": "Current Inventory Detail",
+   "link_type": "Report",
+   "type": "Link"
+  },
+  {
+   "label": "Daily Movement Register",
+   "link_to": "Daily Movement Register",
+   "link_type": "Report",
+   "type": "Link"
+  },
+  {
+   "label": "Batch-wise Summary",
+   "link_to": "EuroPlast Batch Summary",
+   "link_type": "Report",
+   "type": "Link"
+  },
+  {
+   "label": "Customer Summary",
+   "link_to": "EuroPlast Customer Summary",
+   "link_type": "Report",
+   "type": "Link"
+  },
+  {
+   "label": "Inventory Summary (Total)",
+   "link_to": "EuroPlast Inventory Summary",
+   "link_type": "Report",
+   "type": "Link"
+  },
+  {
+   "label": "Batch Maker",
+   "link_to": "Batch QR Maker",
+   "link_type": "DocType",
+   "type": "Link"
+  },
+  {
+   "label": "Settings",
+   "link_to": "Stock Log Settings",
+   "link_type": "DocType",
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-03-29 19:45:00",
+ "modified_by": "Administrator",
+ "module": "Warehouse Management Hub",
+ "name": "EuroPlast Stock Log",
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Stock Manager"
+  }
+ ],
+ "shortcuts": [
+  {
+   "label": "Open Stock Scanner",
+   "link_to": "/stock-scanner",
+   "type": "URL",
+   "icon": "octicon octicon-device-camera"
+  }
+ ]
+}

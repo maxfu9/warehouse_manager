@@ -1,0 +1,16 @@
+{
+ "creation": "2026-03-29 19:35:00",
+ "docstatus": 0,
+ "doctype": "Print Format",
+ "doc_type": "Carton QR",
+ "format": "HTML",
+ "html": "<html>\n<head>\n\t<style>\n\t\t.label-container {\n\t\t\twidth: 80mm;\n\t\t\tpadding: 5mm;\n\t\t\tborder: 1px solid #eee;\n\t\t\ttext-align: center;\n\t\t\tfont-family: sans-serif;\n\t\t}\n\t\t.qr-code {\n\t\t\tmargin-bottom: 5mm;\n\t\t}\n\t\t.item-code {\n\t\t\tfont-weight: bold;\n\t\t\tfont-size: 1.2em;\n\t\t}\n\t\t.carton-no {\n\t\t\tfont-size: 1.1em;\n\t\t\tmargin-top: 2mm;\n\t\t}\n\t</style>\n</head>\n<body>\n\t<div class=\"label-container\">\n\t\t<div class=\"qr-code\">\n\t\t\t{{ generate_qr_svg(doc.signed_data) }}\n\t\t</div>\n\t\t<div class=\"item-info\">\n\t\t\t<div class=\"item-code\">{{ doc.item }}</div>\n\t\t\t<div class=\"carton-no\">{{ doc.carton_no }}</div>\n\t\t\t<div class=\"qty\">Qty: {{ doc.qty }} {{ doc.uom }}</div>\n\t\t</div>\n\t</div>\n</body>\n</html>",
+ "is_standard": "Yes",
+ "modified": "2026-03-29 19:35:00",
+ "modified_by": "Administrator",
+ "module": "Warehouse Management Hub",
+ "name": "Carton Label",
+ "owner": "Administrator",
+ "print_format_type": "Jinja",
+ "standard": "No"
+}

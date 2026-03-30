@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Scanner Hub</title>
+    <meta name="theme-color" content="#0f172a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link id="manifest-link" rel="manifest" href="/manager-scanner-manifest.json">
+    <link rel="icon" type="image/svg+xml" href="/assets/warehouse_manager/icons/manager-scanner-icon.svg">
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #94a3b8;
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --bg: #0f172a;
+            --surface: rgba(30, 41, 59, 0.7);
+            --glass: rgba(255, 255, 255, 0.05);
+            --text: #f8fafc;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: radial-gradient(circle at top right, #1e1b4b, #0f172a);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        .hub-container {
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 16px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Tabs */
+        .tab-bar {
+            display: flex;
+            background: var(--surface);
+            padding: 4px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            color: var(--secondary);
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        /* Setup Panel (Stock Log) */
+        .setup-panel {
+            background: var(--surface);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            display: none;
+        }
+
+        .setup-panel.visible { display: block; animation: slideDown 0.3s ease; }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Form Controls */
+        label { display: block; font-size: 12px; font-weight: 700; color: var(--secondary); margin-bottom: 6px; text-transform: uppercase; }
+        select, input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: white;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .mode-row { display: flex; gap: 8px; margin-bottom: 16px; }
+        .mode-chip {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--glass);
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .mode-chip.active-in { background: var(--primary); border-color: var(--primary); }
+        .mode-chip.active-out { background: var(--warning); border-color: var(--warning); }
+
+        /* Scanner */
+        #reader-wrapper {
+            position: relative;
+            background: black;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.1);
+            aspect-ratio: 1;
+        }
+
+        #reader { width: 100% !important; border: none !important; }
+        #reader video { width: 100% !important; object-fit: cover !important; }
+
+        .scanner-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        .control-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+            cursor: pointer;
+        }
+
+        .control-btn.active { background: var(--primary); }
+
+        /* Feedback UI */
+        #status-card {
+            background: var(--surface);
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: none;
+            text-align: center;
+            animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        .status-icon { width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 30px; }
+        .status-success { background: var(--success); }
+        .status-error { background: var(--error); }
+        .status-out { background: var(--warning); }
+
+        /* Log List */
+        .logs-section { flex: 1; overflow-y: auto; padding-bottom: 80px; }
+        .log-item {
+            background: var(--glass);
+            margin-bottom: 8px;
+            padding: 12px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .log-meta { font-size: 11px; color: var(--secondary); margin-top: 4px; }
+        .log-badge { padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+        .badge-in { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+        .badge-out { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .badge-attendance { background: rgba(99, 102, 241, 0.2); color: var(--primary); }
+
+        /* Stats Card */
+        .stats-card {
+            background: var(--surface);
+            margin: 16px 0;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--primary);
+            display: none;
+        }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .stats-box { background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; text-align: center; }
+        .stats-val { font-size: 20px; font-weight: 800; color: var(--primary); }
+        .item-row { display: flex; justify-content: space-between; font-size: 11px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        /* Over-Camera Manual Entry */
+        .manual-input-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+        }
+        .manual-input-container.active {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        #manual-id {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 16px;
+            padding: 8px;
+            outline: none;
+        }
+        .manual-submit-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="hub-container">
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab('workforce')">Workforce</button>
+            <button class="tab-btn" onclick="switchTab('inventory')">Inventory</button>
+        </div>
+
+        <!-- Inventory Setup Panel -->
+        <div id="setup-panel" class="setup-panel">
+            <label>Scanning Mode</label>
+            <div class="mode-row">
+                <div id="mode-in" class="mode-chip active-in" onclick="setStockMode('In')">Inbound</div>
+                <div id="mode-out" class="mode-chip" onclick="setStockMode('Out')">Outbound</div>
+            </div>
+
+            <div id="stock-fields">
+                <div id="inbound-fields">
+                    <label>Source Type</label>
+                    <select id="source_type" onchange="toggleMeta()">
+                        <option value="Production">Production</option>
+                        <option value="Purchase">Purchase</option>
+                    </select>
+                    <div id="supplier-wrap" style="display:none">
+                        <label>Supplier</label>
+                        <select id="supplier_list"></select>
+                    </div>
+                </div>
+                <div id="outbound-fields" style="display:none">
+                    <label>Customer</label>
+                    <select id="customer_list"></select>
+                </div>
+            </div>
+            
+            <label>Safety Passcode</label>
+            <input type="password" id="passcode" placeholder="Required for Stock Log">
+        </div>
+
+        <!-- Scanner View -->
+        <div id="reader-wrapper">
+            <div id="reader"></div>
+            <div class="scanner-controls">
+                <div id="torch-btn" class="control-btn" onclick="toggleTorch()">🔦</div>
+                <div id="kbd-btn" class="control-btn" onclick="toggleManual()">⌨️</div>
+                <div class="control-btn" onclick="flipCamera()">🔄</div>
+            </div>
+
+            <!-- Manual Entry Bar (Hidden initially, slides up over camera) -->
+            <div id="manual-bar" class="manual-input-container">
+                <input type="text" id="manual-id" placeholder="TYPE ID MANUALLY..." onkeypress="if(event.key==='Enter')handleManualEntry()">
+                <button class="manual-submit-btn" onclick="handleManualEntry()">LOG</button>
+                <div style="cursor:pointer; padding: 0 8px;" onclick="toggleManual()">✕</div>
+            </div>
+        </div>
+
+        <!-- Feedback Card -->
+        <div id="status-card">
+            <div id="status-icon" class="status-icon">✓</div>
+            <div id="status-title" style="font-size: 18px; font-weight: 800; margin-bottom: 4px;">Success</div>
+            <div id="status-msg" style="font-size: 14px; color: var(--secondary);">Logged successfully</div>
+        </div>
+
+        <!-- Session Stats -->
+        <div id="stats-panel" class="stats-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 14px; font-weight: 700;">Session Progress</span>
+            </div>
+            <div class="stats-grid">
+                <div class="stats-box">
+                    <div id="total-scanned" class="stats-val">0</div>
+                    <div style="font-size: 10px; color: var(--secondary);">Total Cartons</div>
+                </div>
+                <div class="stats-box">
+                    <div id="item-count" class="stats-val">0</div>
+                    <div style="font-size: 10px; color: var(--secondary);">Unique Items</div>
+                </div>
+            </div>
+            <div id="item-breakdown" style="margin-top: 12px; max-height: 100px; overflow-y: auto;"></div>
+        </div>
+
+        <!-- Recent Logs -->
+        <div class="logs-section">
+            <label>Recent Scan Hub</label>
+            <div id="logs-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const INJECTED_CSRF = "{{ csrf_token }}";
+        let html5QrCode;
+        let activeTab = 'workforce';
+        let stockMode = 'In';
+        let isTorchOn = false;
+        let logs = [];
+        let sessionStats = { total: 0, items: {} };
+        const TOKEN = new URLSearchParams(window.location.search).get('token') || localStorage.getItem('manager_scanner_token');
+
+        function getCookie(name) {
+            let value = "; " + document.cookie;
+            let parts = value.split("; " + name + "=");
+            if (parts.length == 2) return parts.pop().split(";").shift();
+        }
+
+        const get_csrf_token = () => INJECTED_CSRF || getCookie('csrf_token') || '';
+
+        // Audio Context for synthetic feedback
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, dur) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.value = freq; osc.type = 'sine';
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+            osc.start(); osc.stop(audioCtx.currentTime + dur);
+        }
+
+        function switchTab(tab) {
+            activeTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.innerText.toLowerCase() === tab));
+            document.getElementById('setup-panel').classList.toggle('visible', tab === 'inventory');
+            document.getElementById('stats-panel').style.display = (tab === 'inventory') ? 'block' : 'none';
+            resetStats();
+        }
+
+        function setStockMode(mode) {
+            if (stockMode !== mode) resetStats();
+            stockMode = mode;
+            document.getElementById('mode-in').classList.toggle('active-in', mode === 'In');
+            document.getElementById('mode-out').classList.toggle('active-out', mode === 'Out');
+            document.getElementById('inbound-fields').style.display = mode === 'In' ? 'block' : 'none';
+            document.getElementById('outbound-fields').style.display = mode === 'Out' ? 'block' : 'none';
+            toggleMeta();
+        }
+
+        function toggleMeta() {
+            const src = document.getElementById('source_type').value;
+            document.getElementById('supplier-wrap').style.display = (stockMode === 'In' && src === 'Purchase') ? 'block' : 'none';
+        }
+
+        function initHub() {
+            html5QrCode = new Html5Qrcode("reader");
+            const config = { fps: 10, qrbox: { width: 280, height: 280 }, aspectRatio: 1.0 };
+            
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+            .then(() => {
+                const capabilities = html5QrCode.getRunningTrackCapabilities();
+                if (!capabilities.torch) document.getElementById('torch-btn').style.display = 'none';
+            });
+
+            // Fetch Meta Lists for Inventory
+            fetch('/api/method/warehouse_manager.api.get_meta_lists')
+            .then(res => res.json())
+            .then(r => {
+                const msg = r.message || {};
+                const c = document.getElementById('customer_list');
+                const s = document.getElementById('supplier_list');
+                const src = document.getElementById('source_type');
+
+                if (msg.customers) {
+                    c.innerHTML = msg.customers.map(i => `<option value="${i}">${i}</option>`).join('');
+                    s.innerHTML = msg.suppliers.map(i => `<option value="${i}">${i}</option>`).join('');
+                }
+
+                // Attach Reset Listeners
+                c.addEventListener('change', resetStats);
+                s.addEventListener('change', resetStats);
+                src.addEventListener('change', resetStats);
+            });
+        }
+
+        function onScanSuccess(text) {
+            if (activeTab === 'inventory') {
+                // Only allow Inventory scans in Inventory Tab
+                if (text.startsWith('CRT') || text.startsWith('BCH') || text.includes('carton_no')) {
+                    handleStockLog(text);
+                } else {
+                    showStatus("Wrong Tab", "Please switch to Workforce for attendance", 'error');
+                }
+            } else {
+                // Workforce Tab: Only allow attendance if not an inventory code
+                if (text.startsWith('CRT') || text.startsWith('BCH') || text.includes('carton_no')) {
+                    showStatus("Wrong Tab", "Please switch to Inventory for stock logs", 'error');
+                } else {
+                    handleAttendance(text);
+                }
+            }
+        }
+
+        function handleManualEntry() {
+            const input = document.getElementById('manual-id');
+            const val = input.value.trim().toUpperCase();
+            if (val) {
+                onScanSuccess(val);
+                input.value = '';
+                toggleManual(); // Slide down
+            }
+        }
+
+        function toggleManual() {
+            const bar = document.getElementById('manual-bar');
+            const btn = document.getElementById('kbd-btn');
+            const isActive = bar.classList.toggle('active');
+            btn.classList.toggle('active', isActive);
+            if (isActive) document.getElementById('manual-id').focus();
+        }
+
+        function handleStockLog(text) {
+            const passcode = document.getElementById('passcode').value;
+            if (!passcode) {
+                showStatus("Error", "Please enter Scanner Passcode", 'error');
+                return;
+            }
+
+            if (navigator.vibrate) navigator.vibrate(50);
+            
+            let data = text;
+            try { data = JSON.parse(text); } catch(e) {}
+
+            const params = new URLSearchParams();
+            params.append('cartons', JSON.stringify([data]));
+            params.append('passcode', passcode);
+            params.append('mode', stockMode);
+            params.append('customer', document.getElementById('customer_list').value || '');
+            params.append('source_type', document.getElementById('source_type').value || '');
+            params.append('supplier', document.getElementById('supplier_list').value || '');
+
+            const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+            const csrf = get_csrf_token();
+            if (csrf) headers['X-Frappe-CSRF-Token'] = csrf;
+
+            fetch('/api/method/warehouse_manager.api.log_batch', {
+                method: 'POST',
+                headers: headers,
+                body: params.toString()
+            })
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                return res.json();
+            })
+            .then(r => {
+                const msg = r.message || {};
+                if (msg.status === "success" || msg.status === "partial_success") {
+                    const result = msg.results?.[0] || {};
+                    const itemName = result.item_name || result.item || "Stock Item";
+                    
+                    if (msg.errors && msg.errors.length > 0) {
+                        const err = msg.errors[0];
+                        showStatus("Already Scanned", err, 'error');
+                        playTone(220, 0.3);
+                        // Don't add to log list if failed
+                    } else {
+                        showStatus("Success", `Logged ${stockMode}bound: ${itemName}`, stockMode === 'In' ? 'success' : 'out');
+                        playTone(880, 0.1);
+                        addLog(text, 'stock', stockMode, itemName);
+                    }
+                } else {
+                    const err = msg.errors?.[0] || msg.message || "Scan Error";
+                    showStatus("Error", err, 'error');
+                    playTone(220, 0.3);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showStatus("Error", `Carton Failure: ${err.message}`, 'error');
+                playTone(220, 0.3);
+            });
+
+            html5QrCode.pause(true);
+            setTimeout(() => { hideStatus(); html5QrCode.resume(); }, 1500);
+        }
+
+        function handleAttendance(text) {
+            if (navigator.vibrate) navigator.vibrate(50);
+
+            const params = new URLSearchParams();
+            params.append('scan_data', text);
+            params.append('token', TOKEN || '');
+
+            const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+            const csrf = get_csrf_token();
+            if (csrf) headers['X-Frappe-CSRF-Token'] = csrf;
+            
+            fetch('/api/method/warehouse_manager.api.mark_attendance', {
+                method: 'POST',
+                headers: headers,
+                body: params.toString()
+            })
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                return res.json();
+            })
+            .then(r => {
+                const msg = r.message || {};
+                if (msg.status === "success") {
+                    const empName = msg.message.split(' for ')[1] || "Employee";
+                    showStatus(msg.log_type, msg.message, 'success');
+                    playTone(1200, 0.1);
+                    addLog(text, 'attendance', msg.log_type, empName);
+                } else {
+                    showStatus("Error", msg.message || "Invalid Employee QR", 'error');
+                    playTone(220, 0.3);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showStatus("Error", `Employee Failure: ${err.message}`, 'error');
+                playTone(220, 0.3);
+            });
+
+            html5QrCode.pause(true);
+            setTimeout(() => { hideStatus(); html5QrCode.resume(); }, 1500);
+        }
+
+        function showStatus(title, msg, type) {
+            const card = document.getElementById('status-card');
+            const icon = document.getElementById('status-icon');
+            icon.className = `status-icon status-${type}`;
+            icon.innerText = type === 'error' ? '!' : '✓';
+            document.getElementById('status-title').innerText = title;
+            document.getElementById('status-msg').innerText = msg;
+            card.style.display = 'block';
+        }
+
+        function hideStatus() { document.getElementById('status-card').style.display = 'none'; }
+
+        function addLog(id, app, type, name) {
+            const list = document.getElementById('logs-list');
+            const item = document.createElement('div');
+            item.className = 'log-item';
+            const badgeClass = app === 'attendance' ? 'badge-attendance' : (type === 'In' ? 'badge-in' : 'badge-out');
+            
+            // Clean ID display
+            const displayId = id.length > 25 ? 'Internal Scan' : id;
+            const displayName = name || displayId;
+
+            item.innerHTML = `
+                <div>
+                    <div style="font-weight:700">${displayName}</div>
+                    <div class="log-meta">${displayId !== displayName ? displayId + ' • ' : ''}${new Date().toLocaleTimeString()} • ${app.toUpperCase()}</div>
+                </div>
+                <div class="log-badge ${badgeClass}">${type}</div>
+            `;
+            list.prepend(item);
+
+            if (app === 'stock') updateStats(name);
+        }
+
+        function updateStats(itemName) {
+            sessionStats.total++;
+            sessionStats.items[itemName] = (sessionStats.items[itemName] || 0) + 1;
+            renderStats();
+        }
+
+        function resetStats() {
+            sessionStats = { total: 0, items: {} };
+            renderStats();
+        }
+
+        function renderStats() {
+            document.getElementById('total-scanned').innerText = sessionStats.total;
+            const uniqueItems = Object.keys(sessionStats.items).length;
+            document.getElementById('item-count').innerText = uniqueItems;
+
+            const breakdown = document.getElementById('item-breakdown');
+            breakdown.innerHTML = Object.entries(sessionStats.items)
+                .map(([name, count]) => `
+                    <div class="item-row">
+                        <span>${name}</span>
+                        <span style="font-weight:700">${count}</span>
+                    </div>
+                `).join('');
+        }
+
+        function toggleTorch() {
+            isTorchOn = !isTorchOn;
+            html5QrCode.applyVideoConstraints({ advanced: [{ torch: isTorchOn }] })
+            .then(() => document.getElementById('torch-btn').classList.toggle('active', isTorchOn));
+        }
+
+        function flipCamera() {
+            html5QrCode.stop().then(() => initHub());
+        }
+
+        window.onload = initHub;
+    </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "name": "Manager Scanner",
+  "short_name": "Scanner",
+  "description": "QR attendance scanner for fast employee check-in and check-out.",
+  "start_url": "/scanner",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/assets/warehouse_manager/icons/manager-scanner-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/warehouse_manager/icons/manager-scanner-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

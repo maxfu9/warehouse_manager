@@ -1,0 +1,259 @@
+{
+ "actions": [],
+ "creation": "2026-03-25 21:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_1",
+  "manager_token",
+  "scanner_access_url_html",
+  "scan_cooldown_seconds",
+  "section_break_2",
+  "enforce_signed_qr_codes",
+  "section_break_3",
+  "enable_location_validation",
+  "allowed_latitude",
+  "allowed_longitude",
+  "allowed_radius_meters",
+  "section_break_employee_card",
+  "card_design_preset",
+  "card_badge_label",
+  "show_company_name",
+  "column_break_employee_card_1",
+  "show_photo",
+  "show_employee_id",
+  "show_designation",
+  "show_department",
+  "section_break_employee_card_text",
+  "show_qr_title",
+  "qr_title_text",
+  "column_break_employee_card_text_1",
+  "show_qr_subtitle",
+  "qr_subtitle_text",
+  "section_break_employee_card_size",
+  "card_width_inches",
+  "card_height_inches",
+  "column_break_employee_card_size_1",
+  "qr_size_inches",
+  "print_margin_inches"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Authentication"
+  },
+  {
+   "fieldname": "manager_token",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Manager Scanner Token",
+   "reqd": 1
+  },
+  {
+   "fieldname": "scanner_access_url_html",
+   "fieldtype": "HTML",
+   "label": "Scanner Access URL"
+  },
+  {
+   "default": "60",
+   "description": "Minimum seconds before the same employee can be scanned again.",
+   "fieldname": "scan_cooldown_seconds",
+   "fieldtype": "Int",
+   "label": "Scan Cooldown Seconds",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_2",
+   "fieldtype": "Section Break",
+   "label": "QR Security"
+  },
+  {
+   "default": "0",
+   "description": "Only accept QR codes generated and signed by this app.",
+   "fieldname": "enforce_signed_qr_codes",
+   "fieldtype": "Check",
+   "label": "Enforce Signed QR Codes"
+  },
+  {
+   "fieldname": "section_break_3",
+   "fieldtype": "Section Break",
+   "label": "Location Validation"
+  },
+  {
+   "default": "0",
+   "description": "Require the scanner device to be within the allowed radius.",
+   "fieldname": "enable_location_validation",
+   "fieldtype": "Check",
+   "label": "Enable Location Validation"
+  },
+  {
+   "depends_on": "eval:doc.enable_location_validation",
+   "fieldname": "allowed_latitude",
+   "fieldtype": "Float",
+   "label": "Allowed Latitude"
+  },
+  {
+   "depends_on": "eval:doc.enable_location_validation",
+   "fieldname": "allowed_longitude",
+   "fieldtype": "Float",
+   "label": "Allowed Longitude"
+  },
+  {
+   "default": "100",
+   "depends_on": "eval:doc.enable_location_validation",
+   "description": "Maximum allowed distance from the configured location, in meters.",
+   "fieldname": "allowed_radius_meters",
+   "fieldtype": "Int",
+   "label": "Allowed Radius Meters"
+  },
+  {
+   "fieldname": "section_break_employee_card",
+   "fieldtype": "Section Break",
+   "label": "Employee Card"
+  },
+  {
+   "default": "Modern",
+   "fieldname": "card_design_preset",
+   "fieldtype": "Select",
+   "label": "Card Design",
+   "options": "Modern\nMinimal\nBold"
+  },
+  {
+   "default": "",
+   "fieldname": "card_badge_label",
+   "fieldtype": "Data",
+   "label": "Card Badge Label"
+  },
+  {
+   "default": "1",
+   "fieldname": "show_company_name",
+   "fieldtype": "Check",
+   "label": "Show Company Name"
+  },
+  {
+   "fieldname": "column_break_employee_card_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "show_photo",
+   "fieldtype": "Check",
+   "label": "Show Employee Photo"
+  },
+  {
+   "default": "1",
+   "fieldname": "show_employee_id",
+   "fieldtype": "Check",
+   "label": "Show Employee ID"
+  },
+  {
+   "default": "1",
+   "fieldname": "show_designation",
+   "fieldtype": "Check",
+   "label": "Show Designation"
+  },
+  {
+   "default": "1",
+   "fieldname": "show_department",
+   "fieldtype": "Check",
+   "label": "Show Department"
+  },
+  {
+   "fieldname": "section_break_employee_card_text",
+   "fieldtype": "Section Break",
+   "label": "Card Text"
+  },
+  {
+   "default": "1",
+   "fieldname": "show_qr_title",
+   "fieldtype": "Check",
+   "label": "Show QR Title"
+  },
+  {
+   "default": "Scan to Mark Attendance",
+   "depends_on": "eval:doc.show_qr_title",
+   "fieldname": "qr_title_text",
+   "fieldtype": "Data",
+   "label": "QR Title Text"
+  },
+  {
+   "fieldname": "column_break_employee_card_text_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "show_qr_subtitle",
+   "fieldtype": "Check",
+   "label": "Show QR Subtitle"
+  },
+  {
+   "default": "Use the manager scanner to check in or out",
+   "depends_on": "eval:doc.show_qr_subtitle",
+   "fieldname": "qr_subtitle_text",
+   "fieldtype": "Data",
+   "label": "QR Subtitle Text"
+  },
+  {
+   "fieldname": "section_break_employee_card_size",
+   "fieldtype": "Section Break",
+   "label": "Card Size"
+  },
+  {
+   "default": "3.5",
+   "description": "Standard visiting card width in inches.",
+   "fieldname": "card_width_inches",
+   "fieldtype": "Float",
+   "label": "Card Width (Inches)"
+  },
+  {
+   "default": "2",
+   "description": "Standard visiting card height in inches.",
+   "fieldname": "card_height_inches",
+   "fieldtype": "Float",
+   "label": "Card Height (Inches)"
+  },
+  {
+   "fieldname": "column_break_employee_card_size_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1.18",
+   "description": "QR image square size in inches.",
+   "fieldname": "qr_size_inches",
+   "fieldtype": "Float",
+   "label": "QR Size (Inches)"
+  },
+  {
+   "default": "0.08",
+   "description": "Print margin around the visiting card page, in inches.",
+   "fieldname": "print_margin_inches",
+   "fieldtype": "Float",
+   "label": "Print Margin (Inches)"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-03-25 21:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Warehouse Management Hub",
+ "name": "Manager Scanner Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

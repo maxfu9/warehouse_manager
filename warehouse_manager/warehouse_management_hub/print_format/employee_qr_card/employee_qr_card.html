@@ -1,0 +1,303 @@
+{% set card = get_employee_card_settings() %}
+{% set qr_payload = get_signed_qr_payload(doc.name) %}
+{% set design_class = 'design-' + (card.card_design_preset or 'Modern')|lower %}
+
+<div class="employee-card {{ design_class }}">
+    <div class="card-topbar{% if not card.show_company_name and not card.card_badge_label %} compact{% endif %}">
+        {% if card.show_company_name %}
+            <div class="company-name">{{ doc.company or "Employee Card" }}</div>
+        {% else %}
+            <div></div>
+        {% endif %}
+        {% if card.card_badge_label %}
+            <div class="card-label">{{ card.card_badge_label }}</div>
+        {% endif %}
+    </div>
+
+    <div class="card-main">
+        <div class="employee-panel{% if not card.show_photo %} no-photo{% endif %}">
+            {% if card.show_photo %}
+                <div class="photo-wrap">
+                    {% if doc.image %}
+                        <img src="{{ doc.image }}" class="emp-image">
+                    {% else %}
+                        <div class="emp-image-placeholder">{{ (doc.employee_name or doc.name or 'E')[:1] }}</div>
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            <div class="employee-meta">
+                <div class="emp-name">{{ doc.employee_name or doc.name }}</div>
+                {% if card.show_employee_id %}
+                    <div class="emp-id">{{ doc.name }}</div>
+                {% endif %}
+                {% if card.show_designation and doc.designation %}
+                    <div class="meta-row">{{ doc.designation }}</div>
+                {% endif %}
+                {% if card.show_department and (doc.department or doc.company) %}
+                    <div class="meta-row">{{ doc.department or doc.company }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="qr-panel">
+            <div class="qr-frame">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=280x280&data={{ qr_payload }}" alt="QR Code" class="qr-image">
+            </div>
+            {% if card.show_qr_title and card.qr_title_text %}
+                <div class="qr-title">{{ card.qr_title_text }}</div>
+            {% endif %}
+            {% if card.show_qr_subtitle and card.qr_subtitle_text %}
+                <div class="qr-subtitle">{{ card.qr_subtitle_text }}</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    @page {
+        size: {{ card.card_width_inches }}in {{ card.card_height_inches }}in;
+        margin: {{ card.print_margin_inches }}in;
+    }
+
+    .employee-card {
+        width: {{ card.card_width_inches }}in;
+        min-height: {{ card.card_height_inches }}in;
+        box-sizing: border-box;
+        border: 1.4px solid #0f172a;
+        border-radius: 16px;
+        padding: 0.14in;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        color: #0f172a;
+        font-family: "Helvetica Neue", Arial, sans-serif;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .employee-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.04), rgba(37, 99, 235, 0.08));
+        pointer-events: none;
+    }
+
+    .card-topbar,
+    .card-main {
+        position: relative;
+        z-index: 1;
+    }
+
+    .card-topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.12in;
+        padding-bottom: 0.08in;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+        min-height: 0.22in;
+        gap: 8px;
+    }
+
+    .card-topbar.compact {
+        min-height: 0;
+        margin-bottom: 0.08in;
+        padding-bottom: 0.04in;
+        border-bottom-color: transparent;
+    }
+
+    .company-name {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        max-width: 1.7in;
+        line-height: 1.2;
+    }
+
+    .card-label {
+        font-size: 9px;
+        font-weight: 700;
+        color: #1d4ed8;
+        background: rgba(29, 78, 216, 0.10);
+        border: 1px solid rgba(29, 78, 216, 0.20);
+        border-radius: 999px;
+        padding: 4px 8px;
+        white-space: nowrap;
+    }
+
+    .card-main {
+        display: grid;
+        grid-template-columns: 1.22in 1fr;
+        gap: 0.12in;
+        align-items: stretch;
+    }
+
+    .employee-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0.08in;
+    }
+
+    .employee-panel.no-photo {
+        justify-content: center;
+    }
+
+    .photo-wrap {
+        display: flex;
+        justify-content: center;
+    }
+
+    .emp-image,
+    .emp-image-placeholder {
+        width: 0.9in;
+        height: 0.9in;
+        border-radius: 14px;
+        object-fit: cover;
+        border: 1px solid rgba(15, 23, 42, 0.12);
+        background: #e2e8f0;
+    }
+
+    .emp-image-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        font-weight: 800;
+        color: #334155;
+        text-transform: uppercase;
+    }
+
+    .employee-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .emp-name {
+        font-size: 13px;
+        line-height: 1.15;
+        font-weight: 800;
+        word-break: break-word;
+    }
+
+    .emp-id {
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        color: #1d4ed8;
+    }
+
+    .meta-row {
+        font-size: 8px;
+        color: #475569;
+        line-height: 1.25;
+        word-break: break-word;
+    }
+
+    .qr-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        padding: 0.04in 0.02in;
+    }
+
+    .qr-frame {
+        width: {{ card.qr_size_inches }}in;
+        height: {{ card.qr_size_inches }}in;
+        padding: 0;
+        box-sizing: border-box;
+        background: transparent;
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .qr-image {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    .qr-title {
+        margin-top: 0.05in;
+        font-size: 9px;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .qr-subtitle {
+        margin-top: 2px;
+        font-size: 7px;
+        line-height: 1.2;
+        color: #64748b;
+        max-width: 1.2in;
+    }
+
+    .design-minimal {
+        border-radius: 8px;
+        border-color: #cbd5e1;
+        background: #ffffff;
+    }
+
+    .design-minimal::before {
+        background: none;
+    }
+
+    .design-minimal .card-topbar {
+        border-bottom-color: #e2e8f0;
+    }
+
+    .design-minimal .card-label {
+        background: #ffffff;
+        border-color: #dbe4ee;
+        color: #0f172a;
+        box-shadow: none;
+    }
+
+    .design-minimal .company-name,
+    .design-minimal .emp-id {
+        color: #0f172a;
+    }
+
+    .design-bold {
+        border-width: 1.8px;
+        border-color: #0b1220;
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 50%, #f8fafc 100%);
+    }
+
+    .design-bold::before {
+        background: radial-gradient(circle at top right, rgba(37, 99, 235, 0.18), transparent 45%), linear-gradient(135deg, rgba(15, 23, 42, 0.04), rgba(37, 99, 235, 0.08));
+    }
+
+    .design-bold .card-label {
+        color: #ffffff;
+        background: #1d4ed8;
+        border-color: #1d4ed8;
+    }
+
+    .design-bold .qr-panel {
+        background: transparent;
+    }
+
+    .design-bold .qr-frame {
+        border: none;
+        box-shadow: none;
+    }
+
+    @media print {
+        .employee-card {
+            page-break-inside: avoid;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+    }
+</style>
