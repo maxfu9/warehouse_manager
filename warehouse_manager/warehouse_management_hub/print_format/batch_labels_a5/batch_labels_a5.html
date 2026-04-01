@@ -5,18 +5,26 @@
             {% set item_name = frappe.db.get_value('Item', carton.item, 'item_name') or carton.item %}
 
             <div class="label-box">
-                <div class="label-id">{{ carton.carton_no }}</div>
-
-                <div class="qr-box">
-                    {{ generate_qr_svg(carton.signed_data or carton.name, 18)
-                        | replace('<svg', '<svg preserveAspectRatio="xMidYMid meet" style="display:block;margin:0 auto;"')
-                        | safe }}
-                </div>
-
-                <div class="product-block">
-                    <div class="product-name">{{ item_name }}</div>
-                    <div class="product-qty">{{ carton.qty }}{% if carton.uom %} {{ carton.uom }}{% endif %}</div>
-                </div>
+                <table class="label-grid" cellspacing="0" cellpadding="0">
+                    <tr>
+                        <td class="label-id">{{ carton.carton_no }}</td>
+                    </tr>
+                    <tr>
+                        <td class="qr-cell">
+                            <div class="qr-box">
+                                {{ generate_qr_svg(carton.signed_data or carton.name, 18)
+                                    | replace('<svg', '<svg preserveAspectRatio="xMidYMid meet" style="display:block;margin:0 auto;"')
+                                    | safe }}
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="product-block">
+                            <div class="product-name">{{ item_name }}</div>
+                            <div class="product-qty">{{ carton.qty }}{% if carton.uom %} {{ carton.uom }}{% endif %}</div>
+                        </td>
+                    </tr>
+                </table>
             </div>
         {% endif %}
     {% endfor %}
@@ -46,38 +54,59 @@ body {
     width: 210mm;
     height: 148.5mm;
     box-sizing: border-box;
-    padding: 6mm 12mm 6mm;
+    padding: 6mm 10mm 5mm;
     background: #ffffff;
-    text-align: center;
     page-break-inside: avoid;
     border-bottom: 1px solid #d4d4d4;
 }
 
+.label-grid {
+    width: 100%;
+    height: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
 .label-id {
+    height: 16mm;
     font-size: 24pt;
     font-weight: 900;
     line-height: 1;
     letter-spacing: -0.6px;
     color: #000000;
-    margin: 0 0 2mm;
+    text-align: center;
+    vertical-align: top;
+    padding: 0 0 2mm;
+}
+
+.qr-cell {
+    height: 92mm;
+    vertical-align: middle;
+    text-align: center;
 }
 
 .qr-box {
-    width: 88mm;
-    height: 88mm;
+    width: 86mm;
+    height: 86mm;
     margin: 0 auto;
+    padding: 4mm;
+    box-sizing: border-box;
+    background: #ffffff;
     overflow: hidden;
     line-height: 0;
 }
 
 .product-block {
-    margin-top: 1.5mm;
+    height: 26mm;
+    text-align: center;
+    vertical-align: top;
+    padding-top: 1mm;
 }
 
 .product-name {
-    font-size: 21pt;
+    font-size: 19pt;
     font-weight: 900;
-    line-height: 1.05;
+    line-height: 1;
     text-transform: uppercase;
     letter-spacing: -0.5px;
     color: #000000;
@@ -85,8 +114,8 @@ body {
 }
 
 .product-qty {
-    margin-top: 1mm;
-    font-size: 15pt;
+    margin-top: 1.2mm;
+    font-size: 13pt;
     font-weight: 800;
     line-height: 1.1;
     text-transform: uppercase;
