@@ -169,6 +169,25 @@
             padding: 12px 16px 6px;
             background: linear-gradient(180deg, rgba(13,17,23,0.95), rgba(13,17,23,0.72));
         }
+        .recent-strip.collapsed {
+            padding-bottom: 0;
+        }
+        .recent-strip-toggle {
+            border: none;
+            background: rgba(255,255,255,0.05);
+            color: #cbd5e1;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+        }
+        .recent-strip-body {
+            margin-top: 10px;
+        }
+        .recent-strip.collapsed .recent-strip-body {
+            display: none;
+        }
         .summary-shell {
             display: grid;
             gap: 14px;
@@ -577,8 +596,8 @@
             position: sticky;
             top: 0;
             order: -1;
-            height: 58vh;
-            min-height: 360px;
+            height: 48vh;
+            min-height: 300px;
             background: #000;
             overflow: hidden;
             z-index: 95;
@@ -590,7 +609,7 @@
             left: 14px;
             right: 14px;
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
             gap: 10px;
             z-index: 12;
             pointer-events: none;
@@ -618,6 +637,41 @@
             font: inherit;
             padding: 0;
         }
+        .scanner-bottom-center {
+            position: absolute;
+            left: 50%;
+            bottom: 18px;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 13;
+            pointer-events: none;
+        }
+        .scanner-status-pill {
+            pointer-events: none;
+            min-width: 154px;
+            justify-content: center;
+            text-align: center;
+        }
+        .scanner-icon-btn {
+            pointer-events: auto;
+            width: 46px;
+            height: 46px;
+            border-radius: 23px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(13, 17, 23, 0.78);
+            border: 1px solid rgba(255,255,255,0.16);
+            color: #facc15;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .scanner-icon-btn svg {
+            width: 22px;
+            height: 22px;
+        }
         .scanner-frame {
             position: absolute;
             inset: 0;
@@ -628,8 +682,8 @@
             z-index: 8;
         }
         .scanner-reticle {
-            width: min(72vw, 310px);
-            height: min(72vw, 310px);
+            width: min(70vw, 290px);
+            height: min(70vw, 290px);
             border-radius: 28px;
             border: 2px solid rgba(255,255,255,0.85);
             box-shadow: 0 0 0 200vmax rgba(0,0,0,0.22);
@@ -908,12 +962,18 @@
         <div id="reader"></div>
         <div class="scanner-toolbar">
             <div class="scanner-chip" id="scanner-health">CAMERA READY</div>
-            <div class="scanner-chip warning" id="scanner-restart-chip">
-                <button onclick="restartScanner('manual')">RESTART CAMERA</button>
-            </div>
         </div>
         <div class="scanner-frame">
             <div class="scanner-reticle"></div>
+        </div>
+        <div class="scanner-bottom-center">
+            <div class="scanner-chip scanner-status-pill" id="scanner-align-pill">ALIGN QR IN FRAME</div>
+            <button class="scanner-icon-btn" id="scanner-restart-chip" onclick="restartScanner('manual')" aria-label="Restart camera" title="Restart camera">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+                    <path d="M21 3v6h-6"/>
+                </svg>
+            </button>
         </div>
         <!-- Overlays -->
         <button class="reader-btn" onclick="promptManualEntry()" id="btn-manual" style="left: 20px;">
@@ -950,8 +1010,11 @@
                     <div class="summary-title">Recent Scans</div>
                     <div class="summary-subtitle">Last few scans stay visible while you keep scanning</div>
                 </div>
+                <button class="recent-strip-toggle" id="recent-strip-toggle" onclick="toggleRecentStrip()">SHOW</button>
             </div>
-            <div id="recent-inline-items"></div>
+            <div class="recent-strip-body" id="recent-strip-body">
+                <div id="recent-inline-items"></div>
+            </div>
         </div>
     </div>
 
@@ -1085,6 +1148,7 @@
     let countdownInterval = null;
     let pendingScanData = null;
     let autoConfirmEnabled = localStorage.getItem('scanner_auto_confirm') === 'true';
+    let recentStripExpanded = localStorage.getItem('scanner_recent_expanded') === 'true';
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playSound(type) {
@@ -1132,9 +1196,14 @@
 
     function setScannerHealth(label, tone = '') {
         const el = document.getElementById('scanner-health');
+        const alignEl = document.getElementById('scanner-align-pill');
         if (!el) return;
         el.textContent = label;
         el.className = `scanner-chip${tone ? ` ${tone}` : ''}`;
+        if (alignEl) {
+            alignEl.textContent = label === 'ALIGN QR IN FRAME' ? label : 'ALIGN QR IN FRAME';
+            alignEl.className = `scanner-chip scanner-status-pill${label === 'ALIGN QR IN FRAME' ? (tone ? ` ${tone}` : '') : ''}`;
+        }
     }
 
     function getScannerConfig() {
@@ -1922,6 +1991,20 @@
         renderBlockedScans();
     }
 
+    function renderRecentStrip() {
+        const strip = document.querySelector('.recent-strip');
+        const toggle = document.getElementById('recent-strip-toggle');
+        if (!strip || !toggle) return;
+        strip.classList.toggle('collapsed', !recentStripExpanded);
+        toggle.innerText = recentStripExpanded ? 'HIDE' : 'SHOW';
+    }
+
+    function toggleRecentStrip() {
+        recentStripExpanded = !recentStripExpanded;
+        localStorage.setItem('scanner_recent_expanded', recentStripExpanded ? 'true' : 'false');
+        renderRecentStrip();
+    }
+
     function addBlockedScan(id, reason, mode = stockMode) {
         outboundBlocked.unshift({
             id,
@@ -2427,6 +2510,7 @@
 
     function initializeScannerApp() {
         hydrateSessionFromStorage();
+        renderRecentStrip();
         if (!localStorage.getItem('scanner_setup_done')) {
             document.getElementById('wizard-overlay').style.display = 'flex';
         } else {
