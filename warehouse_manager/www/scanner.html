@@ -647,6 +647,8 @@
             gap: 10px;
             z-index: 13;
             pointer-events: none;
+            width: calc(100% - 120px);
+            justify-content: center;
         }
         .scanner-status-pill {
             pointer-events: none;
@@ -656,6 +658,8 @@
         }
         .scanner-icon-btn {
             pointer-events: auto;
+            position: absolute;
+            right: 0;
             width: 46px;
             height: 46px;
             border-radius: 23px;
@@ -1198,8 +1202,10 @@
         const el = document.getElementById('scanner-health');
         const alignEl = document.getElementById('scanner-align-pill');
         if (!el) return;
-        el.textContent = label;
-        el.className = `scanner-chip${tone ? ` ${tone}` : ''}`;
+        if (label !== 'ALIGN QR IN FRAME') {
+            el.textContent = label;
+            el.className = `scanner-chip${tone ? ` ${tone}` : ''}`;
+        }
         if (alignEl) {
             alignEl.textContent = label === 'ALIGN QR IN FRAME' ? label : 'ALIGN QR IN FRAME';
             alignEl.className = `scanner-chip scanner-status-pill${label === 'ALIGN QR IN FRAME' ? (tone ? ` ${tone}` : '') : ''}`;
