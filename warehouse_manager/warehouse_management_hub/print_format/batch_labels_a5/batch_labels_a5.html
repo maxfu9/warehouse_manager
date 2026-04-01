@@ -8,7 +8,7 @@
                 <div class="label-id">{{ carton.carton_no }}</div>
 
                 <div class="qr-box">
-                    {{ generate_qr_svg(carton.signed_data or carton.name, 24)
+                    {{ generate_qr_svg(carton.signed_data or carton.name, 18)
                         | replace('<svg', '<svg preserveAspectRatio="xMidYMid meet" style="display:block;margin:0 auto;"')
                         | safe }}
                 </div>
@@ -46,7 +46,7 @@ body {
     width: 210mm;
     height: 148.5mm;
     box-sizing: border-box;
-    padding: 8mm 12mm 7mm;
+    padding: 6mm 12mm 6mm;
     background: #ffffff;
     text-align: center;
     page-break-inside: avoid;
@@ -59,23 +59,23 @@ body {
     line-height: 1;
     letter-spacing: -0.6px;
     color: #000000;
-    margin: 0 0 3mm;
+    margin: 0 0 2mm;
 }
 
 .qr-box {
-    width: 118mm;
-    height: 118mm;
+    width: 88mm;
+    height: 88mm;
     margin: 0 auto;
     overflow: hidden;
     line-height: 0;
 }
 
 .product-block {
-    margin-top: 2mm;
+    margin-top: 1.5mm;
 }
 
 .product-name {
-    font-size: 25pt;
+    font-size: 21pt;
     font-weight: 900;
     line-height: 1.05;
     text-transform: uppercase;
@@ -85,8 +85,8 @@ body {
 }
 
 .product-qty {
-    margin-top: 1.5mm;
-    font-size: 18pt;
+    margin-top: 1mm;
+    font-size: 15pt;
     font-weight: 800;
     line-height: 1.1;
     text-transform: uppercase;
