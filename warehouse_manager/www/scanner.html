@@ -1174,6 +1174,9 @@
     let scannerRecoveryTimer = null;
     let scannerWatchdog = null;
     let lastScanAt = 0;
+    let lastDecodeTickAt = 0;
+    let lastVideoFrameTime = 0;
+    let scansSinceRestart = 0;
 
     function setScannerHealth(label, tone = '') {
         const el = document.getElementById('scanner-health');
@@ -1207,6 +1210,10 @@
         }
     }
 
+    function onScanFailure() {
+        lastDecodeTickAt = Date.now();
+    }
+
     function ensureScannerWatchdog() {
         if (scannerWatchdog) return;
         scannerWatchdog = setInterval(() => {
@@ -1219,6 +1226,15 @@
                 restartScanner('recover');
                 return;
             }
+            const videoTime = Number(video.currentTime || 0);
+            const decoderSilent = scansSinceRestart > 0 && lastDecodeTickAt && Date.now() - lastDecodeTickAt > 7000;
+            const videoAdvancing = videoTime > lastVideoFrameTime;
+            if (decoderSilent && videoAdvancing) {
+                console.warn("Scanner watchdog restarting stalled decoder");
+                restartScanner('recover');
+                return;
+            }
+            lastVideoFrameTime = videoTime;
             if (Date.now() - lastScanAt > 12000) {
                 setScannerHealth('ALIGN QR IN FRAME');
             }
@@ -1247,6 +1263,9 @@
             html5QrCode = null;
         }
         isTorchOn = false;
+        lastVideoFrameTime = 0;
+        lastDecodeTickAt = 0;
+        scansSinceRestart = 0;
         document.getElementById('btn-torch').style.display = 'none';
         setScannerHealth('CAMERA PAUSED', 'warning');
         scannerState = 'idle';
@@ -1270,8 +1289,11 @@
             html5QrCode = new Html5Qrcode("reader");
         }
         try {
-            await html5QrCode.start({ facingMode: "environment" }, getScannerConfig(), onScanSuccess);
+            await html5QrCode.start({ facingMode: "environment" }, getScannerConfig(), onScanSuccess, onScanFailure);
             scannerState = 'running';
+            lastDecodeTickAt = Date.now();
+            lastVideoFrameTime = 0;
+            scansSinceRestart = 0;
             ensureScannerWatchdog();
             setScannerHealth('SCAN NOW');
             try {
@@ -1309,6 +1331,8 @@
     async function onScanSuccess(decodedText) {
         if (isScanningBlocked) return;
         lastScanAt = Date.now();
+        lastDecodeTickAt = lastScanAt;
+        scansSinceRestart += 1;
         setScannerHealth('SCANNING ACTIVE');
         isScanningBlocked = true;
         setTimeout(() => { isScanningBlocked = false; }, 1500); // 1.5s industrial debounce
