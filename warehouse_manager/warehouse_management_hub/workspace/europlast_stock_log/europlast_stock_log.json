@@ -1,4 +1,5 @@
 {
+ "app": "warehouse_manager",
  "charts": [
   {
    "chart_name": "Weekly Movement Trend",
@@ -16,66 +17,132 @@
    "width": "Half"
   }
  ],
+ "content": "[{\"id\":\"scanner-shortcut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Open Stock Scanner\",\"col\":3}},{\"id\":\"scanner-spacer\",\"type\":\"spacer\",\"data\":{\"col\":9}},{\"id\":\"weekly-movement\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Weekly Movement Trend\",\"col\":12}},{\"id\":\"top-products\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Top 5 Products in Stock\",\"col\":6}},{\"id\":\"dispatch-share\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Customer Dispatch Share\",\"col\":6}},{\"id\":\"operations-card\",\"type\":\"card\",\"data\":{\"card_name\":\"Operations\",\"col\":4}},{\"id\":\"reports-card\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}},{\"id\":\"setup-card\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":4}}]",
  "creation": "2026-03-29 16:10:00",
+ "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
  "for_user": "",
+ "hide_custom": 0,
  "icon": "octicon octicon-package",
  "indicator_color": "blue",
  "is_default": 0,
+ "is_hidden": 0,
  "is_standard": "Yes",
  "label": "EuroPlast Stock Log",
  "title": "EuroPlast Stock Log",
- "app": "warehouse_manager",
  "onboarding": null,
  "onboarding_list": [],
  "links": [
   {
+   "description": "Main warehouse doctypes for carton movement, scanners, and batch operations.",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Operations",
+   "link_count": 3,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Stock Movement",
    "link_to": "Stock Log",
    "link_type": "DocType",
+   "onboard": 0,
    "type": "Link"
   },
   {
-   "label": "Current Inventory Detail",
-   "link_to": "Current Inventory Detail",
-   "link_type": "Report",
-   "type": "Link"
-  },
-  {
-   "label": "Daily Movement Register",
-   "link_to": "Daily Movement Register",
-   "link_type": "Report",
-   "type": "Link"
-  },
-  {
-   "label": "Batch-wise Summary",
-   "link_to": "EuroPlast Batch Summary",
-   "link_type": "Report",
-   "type": "Link"
-  },
-  {
-   "label": "Customer Summary",
-   "link_to": "EuroPlast Customer Summary",
-   "link_type": "Report",
-   "type": "Link"
-  },
-  {
-   "label": "Inventory Summary (Total)",
-   "link_to": "EuroPlast Inventory Summary",
-   "link_type": "Report",
-   "type": "Link"
-  },
-  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Batch Maker",
    "link_to": "Batch QR Maker",
    "link_type": "DocType",
+   "onboard": 0,
    "type": "Link"
   },
   {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Scanner Settings",
+   "link_to": "Manager Scanner Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "description": "Operational views for inventory, movement, batches, and customer dispatch.",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 5,
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Current Inventory Detail",
+   "link_to": "Current Inventory Detail",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Daily Movement Register",
+   "link_to": "Daily Movement Register",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Batch-wise Summary",
+   "link_to": "EuroPlast Batch Summary",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Customer Summary",
+   "link_to": "EuroPlast Customer Summary",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Inventory Summary (Total)",
+   "link_to": "EuroPlast Inventory Summary",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "description": "Admin controls for warehouse rules and scanning defaults.",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Setup",
+   "link_count": 1,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Settings",
    "link_to": "Stock Log Settings",
    "link_type": "DocType",
+   "onboard": 0,
    "type": "Link"
   }
  ],
@@ -83,9 +150,12 @@
  "modified_by": "Administrator",
  "module": "Warehouse Management Hub",
  "name": "EuroPlast Stock Log",
+ "number_cards": [],
  "owner": "Administrator",
  "parent_page": "",
  "public": 1,
+ "quick_lists": [],
+ "restrict_to_domain": "",
  "roles": [
   {
    "role": "System Manager"
@@ -96,10 +166,13 @@
  ],
  "shortcuts": [
   {
+   "color": "Blue",
+   "doc_view": "List",
    "label": "Open Stock Scanner",
    "link_to": "/stock-scanner",
    "type": "URL",
    "icon": "octicon octicon-device-camera"
   }
- ]
+ ],
+ "type": "Workspace"
 }
