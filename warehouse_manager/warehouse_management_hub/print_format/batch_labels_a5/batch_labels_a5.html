@@ -8,8 +8,8 @@
                 <div class="label-id">{{ carton.carton_no }}</div>
 
                 <div class="qr-box">
-                    {{ carton.qr_svg
-                        | replace('<svg', '<svg width="118mm" height="118mm" preserveAspectRatio="xMidYMid meet" style="display:block;margin:0 auto;"')
+                    {{ generate_qr_svg(carton.signed_data or carton.name, 24)
+                        | replace('<svg', '<svg preserveAspectRatio="xMidYMid meet" style="display:block;margin:0 auto;"')
                         | safe }}
                 </div>
 
