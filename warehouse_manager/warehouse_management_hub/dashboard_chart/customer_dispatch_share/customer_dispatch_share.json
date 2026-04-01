@@ -1,7 +1,8 @@
 {
  "based_on": "",
  "chart_name": "Customer Dispatch Share",
- "chart_type": "Sum",
+ "aggregate_function_based_on": "qty",
+ "chart_type": "Group By",
  "color": "#ffc107",
  "creation": "2026-03-30 09:37:00",
  "docstatus": 0,
@@ -19,7 +20,7 @@
  "name": "Customer Dispatch Share",
  "number_of_groups": 0,
  "owner": "Administrator",
- "time_interval": "",
+ "time_interval": "Daily",
  "timeseries": 0,
  "timespan": "Last Year",
  "type": "Pie",
