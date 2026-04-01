@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 
 def execute(filters=None):
+	filters = filters or {}
 	columns, data = [], []
 	columns = get_columns()
 	data = get_data(filters)
@@ -14,12 +15,14 @@ def execute(filters=None):
 def get_columns():
 	return [
 		{"label": _("Item"), "fieldname": "item", "fieldtype": "Link", "options": "Item", "width": 150},
+		{"label": _("Item Name"), "fieldname": "item_name", "fieldtype": "Data", "width": 180},
 		{"label": _("Batch"), "fieldname": "batch", "fieldtype": "Link", "options": "Batch QR Maker", "width": 140},
 		{"label": _("UOM"), "fieldname": "uom", "fieldtype": "Link", "options": "UOM", "width": 100},
 		{"label": _("Total In (Qty)"), "fieldname": "total_in", "fieldtype": "Float", "width": 110},
 		{"label": _("Total Out (Qty)"), "fieldname": "total_out", "fieldtype": "Float", "width": 110},
 		{"label": _("Balance (Qty)"), "fieldname": "balance", "fieldtype": "Float", "width": 110},
-		{"label": _("Cartons in Stock"), "fieldname": "carton_count", "fieldtype": "Int", "width": 120}
+		{"label": _("Cartons in Stock"), "fieldname": "carton_count", "fieldtype": "Int", "width": 120},
+		{"label": _("Last Inbound"), "fieldname": "last_inbound", "fieldtype": "Datetime", "width": 155}
 	]
 
 def get_chart(data):
@@ -56,40 +59,70 @@ def get_report_summary(data):
 	]
 
 def get_data(filters):
-	conditions = ""
-	if filters.get("from_date"):
-		conditions += f" AND scan_time >= '{filters.get('from_date')}'"
-	if filters.get("to_date"):
-		conditions += f" AND scan_time <= '{filters.get('to_date')} 23:59:59'"
-	if filters.get("item"):
-		conditions += f" AND item = '{filters.get('item')}'"
+	conditions = []
+	params = {}
 
-	# 1. Get totals
-	raw_data = frappe.db.sql(f"""
+	if filters.get("from_date"):
+		conditions.append("sl.scan_time >= %(from_date)s")
+		params["from_date"] = filters.get("from_date")
+	if filters.get("to_date"):
+		conditions.append("sl.scan_time <= %(to_date)s")
+		params["to_date"] = f"{filters.get('to_date')} 23:59:59"
+	if filters.get("item"):
+		conditions.append("sl.item = %(item)s")
+		params["item"] = filters.get("item")
+	if filters.get("batch"):
+		conditions.append("sl.batch = %(batch)s")
+		params["batch"] = filters.get("batch")
+	if filters.get("source_type"):
+		conditions.append("sl.source_type = %(source_type)s")
+		params["source_type"] = filters.get("source_type")
+
+	where_clause = f" AND {' AND '.join(conditions)}" if conditions else ""
+
+	raw_data = frappe.db.sql(
+		f"""
 		SELECT 
-			item, batch, uom,
-			SUM(CASE WHEN type = 'In' THEN qty ELSE 0 END) as total_in,
-			SUM(CASE WHEN type = 'Out' THEN qty ELSE 0 END) as total_out
-		FROM `tabStock Log`
-		WHERE 1=1 {conditions}
-		GROUP BY item, batch, uom
-	""", as_dict=1)
+			sl.item,
+			item.item_name,
+			sl.batch,
+			sl.uom,
+			SUM(CASE WHEN sl.type = 'In' THEN sl.qty ELSE 0 END) as total_in,
+			SUM(CASE WHEN sl.type = 'Out' THEN sl.qty ELSE 0 END) as total_out,
+			SUM(
+				CASE
+					WHEN latest.name IS NOT NULL AND latest.type = 'In' THEN 1
+					ELSE 0
+				END
+			) as carton_count,
+			MAX(CASE WHEN latest.name IS NOT NULL AND latest.type = 'In' THEN latest.scan_time END) as last_inbound
+		FROM `tabStock Log` sl
+		LEFT JOIN `tabItem` item ON item.name = sl.item
+		LEFT JOIN (
+			SELECT cur.*
+			FROM `tabStock Log` cur
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM `tabStock Log` newer
+				WHERE newer.carton_no = cur.carton_no
+				AND (
+					newer.scan_time > cur.scan_time
+					OR (newer.scan_time = cur.scan_time AND newer.name > cur.name)
+				)
+			)
+		) latest ON latest.carton_no = sl.carton_no
+			AND latest.item = sl.item
+			AND IFNULL(latest.batch, '') = IFNULL(sl.batch, '')
+			AND latest.uom = sl.uom
+		WHERE 1=1 {where_clause}
+		GROUP BY sl.item, item.item_name, sl.batch, sl.uom
+		ORDER BY SUM(CASE WHEN sl.type = 'In' THEN sl.qty ELSE 0 END) - SUM(CASE WHEN sl.type = 'Out' THEN sl.qty ELSE 0 END) DESC
+		""",
+		params,
+		as_dict=1,
+	)
 
 	for d in raw_data:
-		d.balance = d.total_in - d.total_out
-		
-		# 2. Get current carton count (those with IN but no OUT logs)
-		# Filter by item AND batch to get specific batch status
-		d.carton_count = frappe.db.sql("""
-			SELECT COUNT(DISTINCT carton_no)
-			FROM `tabStock Log` t1
-			WHERE item = %s
-			AND (batch = %s OR batch IS NULL)
-			AND type = 'In'
-			AND NOT EXISTS (
-				SELECT 1 FROM `tabStock Log` t2 
-				WHERE t2.carton_no = t1.carton_no AND t2.type = 'Out'
-			)
-		""", (d.item, d.batch))[0][0]
+		d.balance = (d.total_in or 0) - (d.total_out or 0)
 
 	return raw_data

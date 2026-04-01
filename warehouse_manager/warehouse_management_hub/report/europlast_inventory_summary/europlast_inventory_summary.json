@@ -21,6 +21,18 @@
    "fieldtype": "Link",
    "label": "Item",
    "options": "Item"
+  },
+  {
+   "fieldname": "batch",
+   "fieldtype": "Link",
+   "label": "Batch",
+   "options": "Batch QR Maker"
+  },
+  {
+   "fieldname": "source_type",
+   "fieldtype": "Select",
+   "label": "Source Type",
+   "options": "\nProduction\nPurchase\nReturn Stock"
   }
  ],
  "is_standard": "Yes",
@@ -36,6 +48,9 @@
  "roles": [
   {
    "role": "System Manager"
+  },
+  {
+   "role": "Stock Manager"
   }
  ]
 }

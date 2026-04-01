@@ -17,6 +17,16 @@
    "fieldtype": "Link",
    "label": "Item",
    "options": "Item"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date"
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date"
   }
  ],
  "is_standard": "Yes",
@@ -32,6 +42,9 @@
  "roles": [
   {
    "role": "System Manager"
+  },
+  {
+   "role": "Stock Manager"
   }
  ]
 }

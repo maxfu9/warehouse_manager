@@ -17,6 +17,22 @@
    "fieldtype": "Link",
    "label": "Item",
    "options": "Item"
+  },
+  {
+   "fieldname": "delivery_note",
+   "fieldtype": "Link",
+   "label": "Delivery Note",
+   "options": "Delivery Note"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date"
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date"
   }
  ],
  "is_standard": "Yes",
@@ -32,6 +48,9 @@
  "roles": [
   {
    "role": "System Manager"
+  },
+  {
+   "role": "Stock Manager"
   }
  ]
 }
