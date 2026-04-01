@@ -840,6 +840,18 @@
                 return;
             }
 
+            if (stockMode === 'In' && status.current_status === 'In Stock') {
+                showStatus("ALREADY IN STOCK", `${status.item_name || status.item || status.carton_no} is already in stock`, 'error');
+                playSound('error'); vibrate('error');
+                return;
+            }
+
+            if (stockMode === 'In' && status.current_status === 'Dispatched') {
+                showStatus("ALREADY DISPATCHED", `${status.item_name || status.item || status.carton_no} is already dispatched`, 'error');
+                playSound('error'); vibrate('error');
+                return;
+            }
+
             // Decide Workflow
             if (status.move_type === 'Out') {
                 if (activeCustomer) {
