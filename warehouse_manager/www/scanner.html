@@ -1229,8 +1229,14 @@
         document.getElementById('delivery-completion-overlay').style.display = 'none';
         toggleChecklist(false);
         renderChecklist();
-        renderSessionBadges();
         renderTruckSummary();
+        
+        // AUTO-RESET to Inbound mode after finishing a shipment
+        stockMode = 'In';
+        const modeEl = document.getElementById('stock-mode');
+        if (modeEl) modeEl.value = 'In';
+        updateStockMode(); 
+        
         showStatus("READY", "Scan next Delivery Note", 'success');
         addToHistory("System", "Next order ready", 'success', 'System');
     }
@@ -1705,15 +1711,14 @@
         const modeEl = document.getElementById('stock-mode');
         if (!modeEl) return;
         
-        // Hard-Lock: If a Delivery Note is active, force 'Delivery' (Pick & Scan)
-        if (activeDN) {
+        // Smart Prompt: If a Delivery Note is active, suggest 'Delivery' 
+        if (activeDN && stockMode !== 'Delivery' && !localStorage.getItem('mode_override')) {
+            // We only force it if they haven't explicitly chosen another mode during this session
             modeEl.value = 'Delivery';
-            modeEl.disabled = true;
-            stockMode = 'Delivery';
-        } else {
-            modeEl.disabled = false;
-            stockMode = modeEl.value;
         }
+        
+        modeEl.disabled = false; // Never lock the user out of their tools
+        stockMode = modeEl.value;
 
         const modeLabel = (stockMode === 'Delivery') ? 'PICK & SCAN' : (stockMode === 'In' ? 'INBOUND' : 'OUTBOUND');
         const modeDisplay = document.getElementById('mode-display');
