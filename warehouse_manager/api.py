@@ -555,6 +555,11 @@ def handle_stock_log(**kwargs):
 			})
 			new_c.insert(ignore_permissions=True)
 		
+		# REAL-TIME BATCH SYNC: Propagate to the Batch QR Maker items/counts
+		batch_id = frappe.db.get_value("Carton QR", carton_no, "batch")
+		if batch_id and frappe.db.exists("Batch QR Maker", batch_id):
+			update_batch_maker_status(batch_id, carton_no, new_status)
+
 		return {
 			"status": "success",
 			"item": item_code or carton_no,
@@ -731,3 +736,35 @@ def has_app_permission():
 	if frappe.session.user == "Guest":
 		return False
 	return True
+
+def update_batch_maker_status(batch_id, carton_no, status):
+	"""
+	Propagates status updates from the scanner to the Batch QR Maker dashboard.
+	Uses direct SQL for speed during high-frequency scans.
+	"""
+	if not batch_id: return
+	
+	try:
+		# 1. Update the child table row for this specific carton
+		frappe.db.sql("""
+			UPDATE `tabBatch QR Maker Item` 
+			SET status = %s 
+			WHERE parent = %s AND carton_no = %s
+		""", (status, batch_id, carton_no))
+		
+		# 2. Update the parent status counts (Optimistic update)
+		# We'll let the user click 'Close' for final reconciliation, 
+		# but we can update the counts here for the live dashboard.
+		if status == "In Stock":
+			frappe.db.sql("UPDATE `tabBatch QR Maker` SET scanned_cartons = scanned_cartons + 1 WHERE name = %s", (batch_id,))
+		elif status == "Dispatched":
+			frappe.db.sql("UPDATE `tabBatch QR Maker` SET dispatched_cartons = dispatched_cartons + 1 WHERE name = %s", (batch_id,))
+			
+		# 3. Notify the Desk UI via Websockets
+		frappe.publish_realtime('batch_status_update', {
+			'batch_id': batch_id,
+			'carton_no': carton_no,
+			'status': status
+		})
+	except Exception as e:
+		frappe.log_error(f"Batch UI Sync Error: {str(e)}", "Warehouse API")
