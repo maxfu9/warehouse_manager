@@ -487,6 +487,28 @@
             color: #cbd5e1;
             border: 1px solid rgba(255,255,255,0.08);
         }
+        .outbound-context {
+            display: none;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.18);
+            gap: 10px;
+            flex-direction: column;
+        }
+        .outbound-context.active { display: flex; }
+        .blocked-section {
+            margin-top: 18px;
+            background: rgba(239,68,68,0.06);
+            border: 1px solid rgba(239,68,68,0.14);
+            border-radius: 12px;
+            padding: 12px;
+        }
+        .blocked-item {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .blocked-item:last-child { border-bottom: none; }
         
         .mode-indicator {
             background: var(--primary); color: white; padding: 4px 10px;
@@ -535,6 +557,17 @@
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 420px;">
         <button class="wizard-btn" style="background: rgba(255,255,255,0.08); color: white; box-shadow: none; margin-top: 0;" onclick="hideLotCloseOverlay()">CONTINUE LOT</button>
         <button class="wizard-btn" style="margin-top: 0;" onclick="finalizeCloseInboundLot()">START NEW LOT</button>
+    </div>
+</div>
+
+<div id="outbound-close-overlay" style="display:none; position:fixed; inset:0; background:rgba(13,17,23,0.96); z-index:2500; flex-direction:column; align-items:center; justify-content:center; padding:28px; text-align:center; backdrop-filter:blur(20px);">
+    <div class="completion-icon" style="background: var(--success); color: white;">🚚</div>
+    <div class="wizard-title" style="color: white; font-size: 2rem; margin-bottom: 10px;">DISPATCH COMPLETE</div>
+    <div class="wizard-desc" id="outbound-close-summary" style="color: rgba(255,255,255,0.9); margin-bottom: 20px;">0 cartons dispatched</div>
+    <div id="outbound-close-details" style="width: 100%; max-width: 420px; max-height: 240px; overflow-y: auto; background: rgba(255,255,255,0.05); border-radius: 14px; padding: 16px; margin-bottom: 20px; text-align: left;"></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%; max-width:420px;">
+        <button class="wizard-btn" style="background: rgba(255,255,255,0.08); color: white; box-shadow: none; margin-top: 0;" onclick="hideOutboundCloseOverlay()">CONTINUE</button>
+        <button class="wizard-btn" style="margin-top: 0;" onclick="finalizeCloseOutboundSession()">START NEW DISPATCH</button>
     </div>
 </div>
 
@@ -636,6 +669,30 @@
                 <button class="context-btn primary" onclick="confirmCloseInboundLot()">START NEW LOT</button>
             </div>
         </div>
+        <div class="outbound-context" id="outbound-context-panel">
+            <div class="context-grid">
+                <div class="context-cell">
+                    <div class="context-label">Dispatch Mode</div>
+                    <div class="context-value" id="ctx-out-mode">Customer Dispatch</div>
+                </div>
+                <div class="context-cell">
+                    <div class="context-label">Dispatched</div>
+                    <div class="context-value" id="ctx-out-count">0 cartons</div>
+                </div>
+                <div class="context-cell">
+                    <div class="context-label">Customer</div>
+                    <div class="context-value" id="ctx-out-customer">Not set</div>
+                </div>
+                <div class="context-cell">
+                    <div class="context-label">Delivery Note</div>
+                    <div class="context-value" id="ctx-out-dn">No active DN</div>
+                </div>
+            </div>
+            <div class="context-actions">
+                <button class="context-btn ghost" onclick="continueOutboundSession()">CONTINUE</button>
+                <button class="context-btn primary" onclick="confirmCloseOutboundSession()">START NEW DISPATCH</button>
+            </div>
+        </div>
     </div>
 
     <!-- Workflow Overlay -->
@@ -730,6 +787,10 @@
         <div id="truck-summary" style="margin-bottom: 20px; background: rgba(255,255,255,0.03); border-radius: 12px; padding: 10px;"></div>
         <h3 style="margin: 0 0 10px 0; font-size: 0.85rem; color: #94a3b8;">Recent Scans</h3>
         <div id="history-items"></div>
+        <div class="blocked-section" id="blocked-panel" style="display:none;">
+            <h3 style="margin:0 0 10px 0; font-size:0.85rem; color:#fca5a5;">Blocked Scans</h3>
+            <div id="blocked-items"></div>
+        </div>
     </div>
 
     <div class="bottom-nav">
@@ -755,7 +816,7 @@
             <select id="stock-mode" onchange="updateStockMode()">
                 <option value="Delivery">Pick & Scan (DN Verify)</option>
                 <option value="In">Inbound</option>
-                <option value="Out">Outbound</option>
+                <option value="Out">Customer Dispatch</option>
             </select>
         </div>
         <div class="setting-box" id="source-type-container" style="display: none;">
@@ -781,6 +842,13 @@
             <div class="context-actions">
                 <button class="context-btn ghost" onclick="continueCurrentLot()">Continue Current Lot</button>
                 <button class="context-btn primary" onclick="confirmCloseInboundLot()">Start New Lot</button>
+            </div>
+        </div>
+        <div class="setting-box" id="outbound-session-actions" style="display: none;">
+            <span class="setting-label">Dispatch Actions</span>
+            <div class="context-actions">
+                <button class="context-btn ghost" onclick="continueOutboundSession()">Continue Dispatch</button>
+                <button class="context-btn primary" onclick="confirmCloseOutboundSession()">Start New Dispatch</button>
             </div>
         </div>
         <datalist id="item-list"></datalist>
@@ -826,6 +894,8 @@
     let activeCustomer = localStorage.getItem('active_customer_id') || '';
     let activeCustomerName = localStorage.getItem('active_customer_name') || '';
     let activeInboundSource = JSON.parse(localStorage.getItem('active_inbound_source') || 'null');
+    let outboundBlocked = JSON.parse(localStorage.getItem('scanner_blocked_history') || '[]');
+    let outboundSessionCartons = JSON.parse(localStorage.getItem('scanner_outbound_cartons') || '[]');
 
     let sessionItems = JSON.parse(localStorage.getItem('scanner_session_items') || '{}');
     let history = [];
@@ -848,6 +918,16 @@
             gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
             osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+        } else if (type === 'completed') {
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(1040, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.35);
+        } else if (type === 'blocked') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(160, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.28);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.28);
         } else {
             osc.type = 'sawtooth'; osc.frequency.setValueAtTime(110, audioCtx.currentTime);
             gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
@@ -973,12 +1053,22 @@
                 return;
             }
 
+            const outboundGuard = getOutboundGuardMessage(status);
+            if (outboundGuard) {
+                showStatus("FIX OUTBOUND", outboundGuard, 'warning');
+                addBlockedScan(status.carton_no || decodedText, outboundGuard, stockMode);
+                openSettings();
+                playSound('blocked'); vibrate('error');
+                return;
+            }
+
             // Decide Workflow
             if (status.move_type === 'Out') {
                 if (activeCustomer) {
                     // AUTO-LOG for Outbound if customer is already set
                     handleStockLog(decodedText, (res) => {
                         updateSessionStats(res);
+                        showOutboundScanCard(res.item_name, res.carton_no, activeDN ? `${dnMatchCount} / ${dnTotalCount}` : `${outboundSessionCartons.length + 1} dispatched`, activeDN ? activeDN.dn_id : activeCustomerName);
                         playSound('success'); vibrate('success');
                         showStatus("SUCCESS", `DISPATCHED: ${res.item_name}`, 'success');
                     }, { mode: 'Out', customer: activeCustomer });
@@ -1178,9 +1268,12 @@
                             playSound('success'); vibrate('success');
                             updateSessionStats(res);
                             checkDeliveryCompletion();
+                            const completedItem = item.current >= item.target;
                             
                             // INDUSTRIAL ENHANCEMENT: SHOW SUCCESS CARD & SCROLL
                             showScanCard(itemName, item.current, item.target, text);
+                            showOutboundScanCard(itemName, text, `${item.current} / ${item.target}`, shipContext.dn_id, completedItem && dnMatchCount >= dnTotalCount);
+                            if (completedItem) playSound('completed');
                             const rowID = `dn-row-${itCode.replace(/[^a-zA-Z0-9]/g, '-')}`;
                             const rowEl = document.getElementById(rowID);
                             if (rowEl) {
@@ -1192,17 +1285,21 @@
                             // Item was saved to Log but NOT in our local checklist (Unexpected)
                             showStatus("AUDIT MISMATCH", `${itemName} not in shipment list!`, 'error');
                             addToHistory(text, "Mismatch: " + itemName, 'error', 'Out', 'Checklist mismatch');
-                            playSound('error'); vibrate('error');
+                            addBlockedScan(text, `Checklist mismatch for ${itemName}`, 'Delivery');
+                            playSound('blocked'); vibrate('error');
                         }
                     } else {
                         // General Inventory Logic (Only if NO shipment loaded)
-                        if (finalType === 'Out' && !currentMapping.Customer) {
+                        if (finalType === 'Out' && !activeCustomer) {
                             showWorkflow('Out', res);
                         } else {
                             showStatus("SUCCESS", `${finalType === 'In' ? 'STOCK IN' : 'DISPATCHED'}: ${itemName}`, 'success');
                             addToHistory(text, itemName, 'success', finalType);
                             playSound('success'); vibrate('success');
                             updateSessionStats(res);
+                            if (finalType === 'Out') {
+                                showOutboundScanCard(itemName, text, `${outboundSessionCartons.length + 1} dispatched`, activeCustomerName || 'Customer Dispatch');
+                            }
                         }
                     }
                 } else {
@@ -1213,17 +1310,21 @@
                     if (isWrongItem) {
                         showStatus("BLOCK: WRONG ITEM", errorMsg, 'error');
                         addToHistory(text, "Blocked Item", 'error', effectiveMode, errorMsg);
+                        addBlockedScan(text, errorMsg, effectiveMode);
+                        playSound('blocked'); vibrate('error');
                     } else if (res && res.needs_item_selection) {
                         showWorkflow('In', { carton_no: text, item: 'Unknown' });
                     } else {
                         showStatus("Scan Rejected", errorMsg, 'error');
                         addToHistory(text, "Scan Rejected", 'error', effectiveMode, errorMsg);
+                        addBlockedScan(text, errorMsg, effectiveMode);
+                        playSound('blocked'); vibrate('error');
                     }
                 }
             }, { 
                 mode: effectiveMode, 
                 delivery_note: (activeDN && activeDN.dn_id) ? activeDN.dn_id : null,
-                customer: (activeDN && activeDN.customer) ? activeDN.customer : (currentMapping.Customer || null)
+                customer: (activeDN && activeDN.customer) ? activeDN.customer : (activeCustomer || null)
             });
         }
     }
@@ -1346,9 +1447,11 @@
         activeCustomer = '';
         activeCustomerName = '';
         mappingCount = 0;
+        outboundSessionCartons = [];
         localStorage.removeItem('active_customer_id');
         localStorage.removeItem('active_customer_name');
         localStorage.removeItem('scanner_mapping_count');
+        localStorage.removeItem('scanner_outbound_cartons');
 
         // PERSIST TRUCK DATA (for multiple DNs in one truck)
         localStorage.removeItem('scanner_active_dn');
@@ -1506,22 +1609,54 @@
         const el = document.getElementById('history-items');
         if (history.length === 0) {
             el.innerHTML = '<div style="font-size: 0.8rem; color: #64748b; text-align: center; padding: 20px;">No Recent Activity</div>';
+        } else {
+            el.innerHTML = history.map(log => `
+                <div class="history-item ${log.success ? 'hist-success' : 'hist-error'}">
+                    <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; min-width: 45px; text-align: center;">
+                        <div style="font-size: 0.65rem; color: #94a3b8;">${log.time}</div>
+                        <div style="font-size: 0.7rem; font-weight: 700; color: var(--primary);">${log.type === 'In' ? 'IN' : 'OUT'}</div>
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 0.8rem; font-weight: 600; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${log.item_name}</div>
+                        <div style="font-size: 0.7rem; color: #64748b;">${log.carton_no}</div>
+                    </div>
+                    <div style="color: var(--success);">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                    </div>
+                </div>
+            `).join('');
+        }
+        renderBlockedScans();
+    }
+
+    function addBlockedScan(id, reason, mode = stockMode) {
+        outboundBlocked.unshift({
+            id,
+            reason,
+            mode,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+        if (outboundBlocked.length > 12) outboundBlocked.pop();
+        localStorage.setItem('scanner_blocked_history', JSON.stringify(outboundBlocked));
+        renderBlockedScans();
+    }
+
+    function renderBlockedScans() {
+        const panel = document.getElementById('blocked-panel');
+        const el = document.getElementById('blocked-items');
+        if (!panel || !el) return;
+        if (!outboundBlocked.length) {
+            panel.style.display = 'none';
             return;
         }
-
-        el.innerHTML = history.map(log => `
-            <div class="history-item ${log.success ? 'hist-success' : 'hist-error'}">
-                <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; min-width: 45px; text-align: center;">
-                    <div style="font-size: 0.65rem; color: #94a3b8;">${log.time}</div>
-                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--primary);">${log.type === 'In' ? 'IN' : 'OUT'}</div>
+        panel.style.display = 'block';
+        el.innerHTML = outboundBlocked.map(log => `
+            <div class="blocked-item">
+                <div style="display:flex; justify-content:space-between; gap:10px;">
+                    <div style="font-weight:700; color:white;">${log.id}</div>
+                    <div style="font-size:0.7rem; color:#fca5a5;">${log.time}</div>
                 </div>
-                <div style="flex: 1; min-width: 0;">
-                    <div style="font-size: 0.8rem; font-weight: 600; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${log.item_name}</div>
-                    <div style="font-size: 0.7rem; color: #64748b;">${log.carton_no}</div>
-                </div>
-                <div style="color: var(--success);">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-                </div>
+                <div style="font-size:0.78rem; color:#fecaca; margin-top:4px;">${log.reason}</div>
             </div>
         `).join('');
     }
@@ -1532,12 +1667,16 @@
         mappingCount = 0;
         sessionItems = {};
         history = [];
+        outboundBlocked = [];
+        outboundSessionCartons = [];
         clearInboundSource();
         
         localStorage.removeItem('scanner_truck_total');
         localStorage.removeItem('scanner_mapping_count');
         localStorage.removeItem('scanner_session_items');
         localStorage.removeItem('scanner_history');
+        localStorage.removeItem('scanner_blocked_history');
+        localStorage.removeItem('scanner_outbound_cartons');
         
         renderSessionBadges();
         renderHistory();
@@ -1554,6 +1693,12 @@
         }
         sessionItems[itemCode].qty += (res.qty || 0);
         sessionItems[itemCode].scans += 1;
+        if ((res.log_type || res.type || stockMode) === 'Out' && res.carton_no) {
+            if (!outboundSessionCartons.includes(res.carton_no)) {
+                outboundSessionCartons.push(res.carton_no);
+                localStorage.setItem('scanner_outbound_cartons', JSON.stringify(outboundSessionCartons));
+            }
+        }
 
         // History Log
         const logEntry = {
@@ -1697,6 +1842,7 @@
             }
         }
         renderInboundContext();
+        renderOutboundContext();
         renderTruckSummary();
     }
 
@@ -1768,6 +1914,12 @@
     function renderChecklist() {
         const container = document.getElementById('checklist-items');
         if (!container) return;
+        const statsEl = document.getElementById('checklist-stats');
+        if (statsEl && activeDN) {
+            const remaining = Math.max((dnTotalCount || 0) - (dnMatchCount || 0), 0);
+            const percent = dnTotalCount ? Math.round((dnMatchCount / dnTotalCount) * 100) : 0;
+            statsEl.innerText = `${dnMatchCount} / ${dnTotalCount} scanned • ${remaining} remaining • ${percent}%`;
+        }
         
         container.innerHTML = Object.keys(dnChecklist).map(code => {
             const it = dnChecklist[code];
@@ -1810,6 +1962,7 @@
             truckTotal = 0; // Reset session totals too on explicit unload
             mappingCount = 0;
             sessionItems = {};
+            outboundSessionCartons = [];
             
             localStorage.removeItem('scanner_active_dn');
             localStorage.removeItem('scanner_dn_checklist');
@@ -1820,6 +1973,7 @@
             localStorage.removeItem('scanner_truck_total');
             localStorage.removeItem('scanner_mapping_count');
             localStorage.removeItem('scanner_session_items');
+            localStorage.removeItem('scanner_outbound_cartons');
             
             renderSessionBadges();
             renderChecklist();
@@ -1861,7 +2015,7 @@
         modeEl.disabled = false; // Never lock the user out of their tools
         stockMode = modeEl.value;
 
-        const modeLabel = (stockMode === 'Delivery') ? 'PICK & SCAN' : (stockMode === 'In' ? 'INBOUND' : 'OUTBOUND');
+        const modeLabel = (stockMode === 'Delivery') ? 'PICK & SCAN' : (stockMode === 'In' ? 'INBOUND' : 'CUSTOMER DISPATCH');
         const modeDisplay = document.getElementById('mode-display');
         if (modeDisplay) modeDisplay.innerText = modeLabel;
         
@@ -1870,6 +2024,7 @@
         const suppCont = document.getElementById('supplier-container');
         const custCont = document.getElementById('customer-container');
         const lotActions = document.getElementById('inbound-lot-actions');
+        const outboundActions = document.getElementById('outbound-session-actions');
 
         if (stockMode === 'Delivery') {
             if (dnBadge) dnBadge.style.display = 'flex';
@@ -1877,10 +2032,12 @@
             if (suppCont) suppCont.style.display = 'none';
             if (custCont) custCont.style.display = 'none';
             if (lotActions) lotActions.style.display = 'none';
+            if (outboundActions) outboundActions.style.display = 'block';
         } else if (stockMode === 'In') {
             if (dnBadge) dnBadge.style.display = 'none';
             if (sourceCont) sourceCont.style.display = 'block';
             if (lotActions) lotActions.style.display = 'block';
+            if (outboundActions) outboundActions.style.display = 'none';
             updateSourceType();
         } else {
             // Outbound
@@ -1889,6 +2046,7 @@
             if (suppCont) suppCont.style.display = 'none';
             if (custCont) custCont.style.display = 'block';
             if (lotActions) lotActions.style.display = 'none';
+            if (outboundActions) outboundActions.style.display = 'block';
             toggleChecklist(false);
         }
         renderSessionBadges();
@@ -2026,6 +2184,116 @@
         if (selection.source_type === 'Purchase') return { source: 'Purchase', partner: selection.supplier || 'Supplier required' };
         if (selection.source_type === 'Return Stock') return { source: 'Return Stock', partner: selection.customer || 'Customer required' };
         return { source: selection.ui_source_type || selection.source_type || 'Not set', partner: selection.supplier || selection.customer || 'Not required' };
+    }
+
+    function renderOutboundContext() {
+        const panel = document.getElementById('outbound-context-panel');
+        if (!panel) return;
+        if (stockMode !== 'Out' && stockMode !== 'Delivery') {
+            panel.classList.remove('active');
+            return;
+        }
+        const dnText = activeDN ? activeDN.dn_id : 'No active DN';
+        const customerText = activeDN ? (activeDN.customer || activeCustomerName || 'Not set') : (activeCustomerName || 'Not set');
+        document.getElementById('ctx-out-mode').innerText = stockMode === 'Delivery' ? 'Pick & Scan' : 'Customer Dispatch';
+        document.getElementById('ctx-out-count').innerText = `${outboundSessionCartons.length} cartons`;
+        document.getElementById('ctx-out-customer').innerText = customerText;
+        document.getElementById('ctx-out-dn').innerText = dnText;
+        panel.classList.add('active');
+    }
+
+    function hideOutboundCloseOverlay() {
+        const overlay = document.getElementById('outbound-close-overlay');
+        if (overlay) overlay.style.display = 'none';
+    }
+
+    function continueOutboundSession() {
+        const panel = document.getElementById('settings-panel');
+        if (panel && panel.style.display === 'block') panel.style.display = 'none';
+        hideOutboundCloseOverlay();
+        showStatus('DISPATCH ACTIVE', 'Continuing current outbound session', 'success');
+    }
+
+    function confirmCloseOutboundSession() {
+        if (stockMode !== 'Out' && stockMode !== 'Delivery') return;
+        const overlay = document.getElementById('outbound-close-overlay');
+        const summary = document.getElementById('outbound-close-summary');
+        const details = document.getElementById('outbound-close-details');
+        if (!overlay || !summary || !details) return;
+        summary.innerText = `${outboundSessionCartons.length} cartons dispatched in this session`;
+        details.innerHTML = `
+            <div style="display:grid; gap:10px;">
+                <div><strong style="color:white;">Mode</strong><div style="color:#cbd5e1; margin-top:4px;">${stockMode === 'Delivery' ? 'Pick & Scan' : 'Customer Dispatch'}</div></div>
+                <div><strong style="color:white;">Customer</strong><div style="color:#cbd5e1; margin-top:4px;">${activeDN ? (activeDN.customer || activeCustomerName || 'Not set') : (activeCustomerName || 'Not set')}</div></div>
+                <div><strong style="color:white;">Delivery Note</strong><div style="color:#cbd5e1; margin-top:4px;">${activeDN ? activeDN.dn_id : 'No active DN'}</div></div>
+                <div><strong style="color:white;">Blocked Scans</strong><div style="color:#cbd5e1; margin-top:4px;">${outboundBlocked.length}</div></div>
+            </div>
+        `;
+        overlay.style.display = 'flex';
+    }
+
+    function finalizeCloseOutboundSession() {
+        hideOutboundCloseOverlay();
+        activeDN = null;
+        dnChecklist = {};
+        dnMatchCount = 0;
+        dnTotalCount = 0;
+        activeCustomer = '';
+        activeCustomerName = '';
+        truckTotal = 0;
+        mappingCount = 0;
+        sessionItems = {};
+        history = [];
+        outboundBlocked = [];
+        outboundSessionCartons = [];
+        localStorage.removeItem('scanner_active_dn');
+        localStorage.removeItem('scanner_dn_checklist');
+        localStorage.removeItem('scanner_dn_match_count');
+        localStorage.removeItem('scanner_dn_total_count');
+        localStorage.removeItem('active_customer_id');
+        localStorage.removeItem('active_customer_name');
+        localStorage.removeItem('scanner_truck_total');
+        localStorage.removeItem('scanner_mapping_count');
+        localStorage.removeItem('scanner_session_items');
+        localStorage.removeItem('scanner_history');
+        localStorage.removeItem('scanner_blocked_history');
+        localStorage.removeItem('scanner_outbound_cartons');
+        renderChecklist();
+        renderHistory();
+        renderSessionBadges();
+        renderTruckSummary();
+        toggleChecklist(false);
+        stockMode = 'Out';
+        const modeEl = document.getElementById('stock-mode');
+        if (modeEl) modeEl.value = 'Out';
+        updateStockMode();
+        showStatus('NEW DISPATCH', 'Outbound session cleared. Choose customer or DN.', 'success');
+    }
+
+    function getOutboundGuardMessage(status) {
+        if (stockMode === 'Delivery' && !activeDN) return 'Scan or load a delivery note first';
+        if (stockMode === 'Out' && !activeCustomer) return 'Select customer first';
+        if ((stockMode === 'Out' || stockMode === 'Delivery') && status?.carton_no && outboundSessionCartons.includes(status.carton_no)) {
+            return 'Already dispatched in this session';
+        }
+        return null;
+    }
+
+    function showOutboundScanCard(itemName, cartonNo, targetLabel, detailLabel, complete = false) {
+        const card = document.getElementById('scan-feedback-card');
+        const nameEl = document.getElementById('fb-name');
+        const progEl = document.getElementById('fb-progress');
+        const statusEl = document.getElementById('fb-status');
+        const undoBtn = document.getElementById('fb-undo');
+        if (!card || !nameEl || !progEl || !statusEl) return;
+        statusEl.innerText = complete ? 'ORDER COMPLETED' : 'DISPATCHED';
+        statusEl.style.color = complete ? 'var(--success)' : '#34d399';
+        nameEl.innerText = `${itemName} • ${cartonNo}`;
+        progEl.innerText = targetLabel || detailLabel || '';
+        if (undoBtn) undoBtn.style.display = stockMode === 'Delivery' ? 'block' : 'none';
+        card.classList.add('show');
+        clearTimeout(feedbackTimer);
+        feedbackTimer = setTimeout(() => card.classList.remove('show'), complete ? 4000 : 2500);
     }
 
     function renderInboundContext() {
@@ -2335,6 +2603,16 @@
             delivery_note: (activeDN && activeDN.dn_id) ? activeDN.dn_id : null
         };
 
+        if (logType === 'Out') {
+            const outboundGuard = getOutboundGuardMessage({ carton_no: currentWorkflowScan.carton_no });
+            if (outboundGuard) {
+                showStatus("FIX OUTBOUND", outboundGuard, 'warning');
+                addBlockedScan(currentWorkflowScan.carton_no, outboundGuard, stockMode);
+                playSound('blocked'); vibrate('error');
+                return;
+            }
+        }
+
         // Strict DN Validation for manual selection
         if (activeDN && itemCode) {
             const dnItems = JSON.parse(localStorage.getItem('scanner_dn_checklist') || '{}');
@@ -2373,6 +2651,7 @@
                         setMapping('Customer', actorName, actorName, true);
                     }
                     updateStockMode();
+                    showOutboundScanCard(res.item_name, res.carton_no, activeDN ? `${dnMatchCount} / ${dnTotalCount}` : `${outboundSessionCartons.length + 1} dispatched`, activeDN ? activeDN.dn_id : (actorName || activeCustomerName));
                 }
 
                 updateSessionStats(res);
@@ -2398,7 +2677,8 @@
                 // FAILURE: Show error and KEEP the workflow open so user can fix it
                 const errorMsg = error || (res ? res.message : "Process Failed");
                 showStatus("BLOCK", errorMsg, 'error');
-                playSound('error'); vibrate('error');
+                addBlockedScan(currentWorkflowScan.carton_no, errorMsg, stockMode);
+                playSound('blocked'); vibrate('error');
             }
         }, params);
     }
