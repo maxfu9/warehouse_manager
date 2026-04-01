@@ -21,8 +21,9 @@ frappe.ui.form.on('Batch QR Maker', {
 		if (frm.doc.docstatus === 1) {
 			// Explicit Print Button for A5 Labels
 			frm.add_custom_button(__('Print Labels (A5)'), function() {
-				frappe.utils.print(frm.doctype, frm.docname, 'Batch Labels A5', frm.doc.print_letterhead, frm.doc.language);
-			}).addClass('btn-primary').css({'background-color': '#4299e1', 'color': 'white'});
+				// Use set_route to force the specific print format
+				frappe.set_route('print', frm.doctype, frm.docname, 'Batch Labels A5');
+			}).addClass('btn-primary').css({'background-color': '#1a73e8', 'color': 'white', 'font-weight': 'bold'});
 
 			if (frm.doc.status === 'Generated') {
 				// Only for Managers
