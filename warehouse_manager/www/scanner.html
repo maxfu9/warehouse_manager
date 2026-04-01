@@ -574,6 +574,39 @@
         .settings-grid { display: grid; gap: 15px; margin-top: 20px; }
         .setting-box { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); }
         .setting-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; display: block; }
+        .settings-section-title {
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: #94a3b8;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-top: 10px;
+            margin-bottom: -4px;
+        }
+        .settings-section-title:first-child {
+            margin-top: 0;
+        }
+        .settings-hint {
+            font-size: 0.78rem;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+        .settings-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 6px;
+        }
+        .secondary-btn {
+            width: 100%;
+            background: rgba(255,255,255,0.04);
+            color: #cbd5e1;
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.08);
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
         select { background: transparent; color: white; border: none; width: 100%; font-size: 1rem; outline: none; }
         #delivery-completion-overlay {
             position: fixed; inset: 0; background: rgba(16, 185, 129, 0.95);
@@ -825,48 +858,24 @@
 </div>
 
 <div id="wizard-overlay">
-    <div class="wizard-step active" id="step-1">
+    <div class="wizard-step active" id="step-setup">
         <svg class="wizard-icon" viewBox="0 0 128 128"><rect width="128" height="128" rx="30" fill="#3b82f6"/><path d="M40 40h48v48H40z" fill="none" stroke="#fff" stroke-width="8"/><path d="M30 64h68M64 30v68" stroke="#fff" stroke-width="6" stroke-linecap="round"/></svg>
-        <div class="wizard-title">Warehouse Hub</div>
-        <div class="wizard-desc">Professional scanning hub with high-fidelity feedback and real-time verification.</div>
-        <button class="wizard-btn" onclick="nextStep(2)">Get Started</button>
-    </div>
-
-    <div class="wizard-step" id="step-2">
-        <div class="wizard-title">Security Check</div>
-        <div class="wizard-desc">Enter your scanner passcode. This is validated against ERPNext backend.</div>
+        <div class="wizard-title">Scanner Setup</div>
+        <div class="wizard-desc">Enter your scanner passcode and start scanning. Everything else can be changed later from Scanner Control.</div>
         <input type="password" id="wiz-passcode" class="wizard-input" placeholder="Scanner Passcode" inputmode="numeric">
-        <button class="wizard-btn" onclick="savePasscode()">Secure Login</button>
-    </div>
-
-    <div class="wizard-step" id="step-3">
-        <div class="wizard-title">Configuration</div>
-        <div class="wizard-desc">Choose your default mode. You can switch these settings anytime.</div>
-        <div class="settings-grid" style="width: 100%; margin-bottom: 20px;">
-            <div class="setting-box" onclick="selectPref('inventory')">
-                <div class="setting-label">Recommended</div>
-                <div style="font-weight: 600;">📦 Warehouse Master</div>
-                <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">Inbound, Outbound, Delivery</div>
-            </div>
-            <div class="setting-box" onclick="selectPref('staff')">
-                <div style="font-weight: 600;">👥 Staff Mode</div>
-                <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">Attendance management only</div>
-            </div>
-
-            <div style="margin-top: 30px; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 16px;">
-                <div class="setting-row" style="border: none; padding-top: 0;">
-                    <div>
-                        <div style="font-weight: 600;">⚡ Auto-Confirm</div>
-                        <div style="font-size: 0.75rem; color: #94a3b8;">Log attendance after 3s automatically</div>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="wizard-auto-confirm" checked>
-                        <span class="slider"></span>
-                    </label>
+        <div style="width: 100%; padding: 18px; background: rgba(255,255,255,0.05); border-radius: 16px; margin-bottom: 20px;">
+            <div class="setting-row" style="border: none; padding: 0;">
+                <div>
+                    <div style="font-weight: 600;">Auto-Confirm Attendance</div>
+                    <div style="font-size: 0.75rem; color: #94a3b8;">Automatically submit employee scans after 3 seconds</div>
                 </div>
+                <label class="switch">
+                    <input type="checkbox" id="wizard-auto-confirm" checked>
+                    <span class="slider"></span>
+                </label>
             </div>
         </div>
-        <button class="wizard-btn" onclick="finishWizard()">Finish Setup</button>
+        <button class="wizard-btn" onclick="finishWizard()">Start Scanning</button>
     </div>
 </div>
 
@@ -1036,6 +1045,7 @@
         <button onclick="toggleSettings()" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">&times;</button>
     </div>
     <div class="settings-grid">
+        <div class="settings-section-title">Workflow</div>
         <div class="setting-box">
             <span class="setting-label">Stock Mode</span>
             <select id="stock-mode" onchange="updateStockMode()">
@@ -1043,7 +1053,9 @@
                 <option value="In">Inbound</option>
                 <option value="Out">Customer Dispatch</option>
             </select>
+            <div class="settings-hint" style="margin-top:10px;">Choose how carton scans should be interpreted right now.</div>
         </div>
+        <div class="settings-section-title">Inbound Source</div>
         <div class="setting-box" id="source-type-container" style="display: none;">
             <span class="setting-label">Source Type</span>
             <select id="source-type" onchange="handleSourceTypeChange()">
@@ -1062,6 +1074,7 @@
             <input type="text" id="customer-input" list="customer-list" placeholder="Search Customer..." class="wizard-input" style="padding: 8px; margin:0;" autocomplete="off" oninput="rememberCustomerInput(this.value)">
             <datalist id="customer-list"></datalist>
         </div>
+        <div class="settings-section-title">Session Actions</div>
         <div class="setting-box" id="inbound-lot-actions" style="display: none;">
             <span class="setting-label">Lot Actions</span>
             <div class="context-actions">
@@ -1077,9 +1090,10 @@
             </div>
         </div>
         <datalist id="item-list"></datalist>
+        <div class="settings-section-title">Device</div>
         <div class="setting-row">
             <div>
-                <div style="font-weight: 600; color: white;">⚡ Auto-Confirm Attendance</div>
+                <div style="font-weight: 600; color: white;">Auto-Confirm Attendance</div>
                 <div style="font-size: 0.8rem; color: #94a3b8;">Automatically log after 3 seconds</div>
             </div>
             <label class="switch">
@@ -1094,10 +1108,11 @@
                 <input type="password" id="global-passcode" class="wizard-input" style="padding: 10px; font-size: 0.9rem;" onchange="localStorage.setItem('scanner_passcode', this.value)">
             </div>
         </div>
-
-        <div style="margin-top: 20px;">
-    <button class="wizard-btn" style="margin-top: 10px; background: transparent; color: #64748b; box-shadow:none;" onclick="resetWizard()">Reset Configuration</button>
-</div>
+        <div class="settings-actions">
+            <button class="secondary-btn" onclick="restartScanner('manual')">Restart Camera</button>
+            <button class="secondary-btn" onclick="resetWizard()">Reset Setup</button>
+        </div>
+    </div>
 
 <script>
     let html5QrCode;
@@ -1360,7 +1375,8 @@
             if (!passcode) {
                 showStatus("SECURITY", "Please re-login (Passcode lost)", 'error');
                 document.getElementById('wizard-overlay').style.display = 'flex';
-                nextStep(2);
+                const passcodeInput = document.getElementById('wiz-passcode');
+                if (passcodeInput) passcodeInput.focus();
                 return;
             }
 
@@ -2482,29 +2498,18 @@
         if (id) onScanSuccess(id);
     }
 
-    function nextStep(step) {
-        document.querySelectorAll('.wizard-step').forEach(s => s.classList.remove('active'));
-        document.getElementById(`step-${step}`).classList.add('active');
-    }
-
-    function savePasscode() {
-        const p = document.getElementById('wiz-passcode').value;
-        if (!p) return alert("Enter Passcode");
-        localStorage.setItem('scanner_passcode', p);
-        document.getElementById('global-passcode').value = p;
-        nextStep(3);
-    }
-
-    function selectPref(mode) {
-        document.querySelectorAll('.wizard-step .setting-box').forEach(b => b.style.borderColor = 'rgba(255,255,255,0.1)');
-        event.currentTarget.style.borderColor = 'var(--primary)';
-    }
-
     function finishWizard() {
+        const passcode = (document.getElementById('wiz-passcode')?.value || '').trim();
+        if (!passcode) {
+            alert("Enter Passcode");
+            return;
+        }
+        localStorage.setItem('scanner_passcode', passcode);
         localStorage.setItem('scanner_setup_done', 'true');
         localStorage.setItem('scanner_mode', 'Delivery'); // Default for first load
         const autoConfirm = document.getElementById('wizard-auto-confirm').checked;
         updateAutoConfirm(autoConfirm);
+        document.getElementById('global-passcode').value = passcode;
         
         document.getElementById('wizard-overlay').classList.add('hide');
         setTimeout(() => document.getElementById('wizard-overlay').style.display = 'none', 500);
@@ -2520,6 +2525,8 @@
         renderRecentStrip();
         if (!localStorage.getItem('scanner_setup_done')) {
             document.getElementById('wizard-overlay').style.display = 'flex';
+            const passcodeInput = document.getElementById('wiz-passcode');
+            if (passcodeInput) passcodeInput.focus();
         } else {
             document.getElementById('wizard-overlay').style.display = 'none';
             fetchMetadata();
