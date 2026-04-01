@@ -2,696 +2,2095 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unified Scanner Hub</title>
-    <meta name="theme-color" content="#0f172a">
-    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Warehouse Management Hub</title>
+    <link rel="manifest" id="pwa-manifest">
+    <meta name="theme-color" content="#0d1117">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link id="manifest-link" rel="manifest" href="/manager-scanner-manifest.json">
-    <link rel="icon" type="image/svg+xml" href="/assets/warehouse_manager/icons/manager-scanner-icon.svg">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         :root {
-            --primary: #6366f1;
-            --secondary: #94a3b8;
-            --success: #22c55e;
+            --primary: #3b82f6;
+            --success: #10b981;
             --error: #ef4444;
             --warning: #f59e0b;
-            --bg: #0f172a;
-            --surface: rgba(30, 41, 59, 0.7);
-            --glass: rgba(255, 255, 255, 0.05);
+            --bg: #0d1117;
+            --card: rgba(30, 41, 59, 0.7);
             --text: #f8fafc;
         }
 
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Inter', -apple-system, sans-serif;
-            background: radial-gradient(circle at top right, #1e1b4b, #0f172a);
-            color: var(--text);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow-x: hidden;
+            margin: 0; font-family: 'Outfit', sans-serif;
+            background: var(--bg); color: var(--text);
+            overflow: hidden; height: 100vh;
         }
 
-        .hub-container {
-            width: 100%;
-            max-width: 500px;
-            margin: 0 auto;
-            padding: 16px;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
+        .app-container {
+            display: flex; flex-direction: column;
+            height: 100vh; position: relative; background: var(--bg);
         }
 
-        /* Tabs */
-        .tab-bar {
-            display: flex;
-            background: var(--surface);
-            padding: 4px;
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.1);
+        #reader {
+            height: 50vh; background: #000;
+            overflow: hidden; position: relative;
+            flex-shrink: 0; box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+            z-index: 5;
         }
 
-        .tab-btn {
-            flex: 1;
-            padding: 10px;
-            border: none;
-            background: transparent;
-            color: var(--secondary);
-            font-weight: 700;
-            font-size: 14px;
-            cursor: pointer;
-            border-radius: 8px;
-            transition: all 0.3s;
+        .status-header {
+            position: absolute; top: 0; left: 0; right: 0;
+            padding: env(safe-area-inset-top) 20px 15px;
+            background: linear-gradient(to bottom, rgba(13,17,23,0.9), transparent);
+            z-index: 10; display: flex; align-items: center; justify-content: space-between;
         }
 
-        .tab-btn.active {
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        .mode-indicator {
+            background: var(--primary); padding: 6px 14px;
+            border-radius: 20px; font-weight: 600; font-size: 0.85rem;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+            transition: all 0.3s ease;
         }
 
-        /* Setup Panel (Stock Log) */
-        .setup-panel {
-            background: var(--surface);
-            padding: 20px;
-            border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.1);
-            backdrop-filter: blur(10px);
-            display: none;
+        .dn-badge {
+            background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+            padding: 6px 12px; border-radius: 10px; font-size: 0.8rem;
+            border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 6px;
         }
 
-        .setup-panel.visible { display: block; animation: slideDown 0.3s ease; }
-
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Form Controls */
-        label { display: block; font-size: 12px; font-weight: 700; color: var(--secondary); margin-bottom: 6px; text-transform: uppercase; }
-        select, input {
-            width: 100%;
-            padding: 12px;
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px;
-            color: white;
-            margin-bottom: 12px;
-            font-size: 14px;
-        }
-
-        .mode-row { display: flex; gap: 8px; margin-bottom: 16px; }
-        .mode-chip {
-            flex: 1;
-            padding: 12px;
-            text-align: center;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: var(--glass);
-            cursor: pointer;
-            font-weight: 700;
-        }
-        .mode-chip.active-in { background: var(--primary); border-color: var(--primary); }
-        .mode-chip.active-out { background: var(--warning); border-color: var(--warning); }
-
-        /* Scanner */
-        #reader-wrapper {
-            position: relative;
-            background: black;
-            border-radius: 20px;
-            overflow: hidden;
-            border: 2px solid rgba(255,255,255,0.1);
-            aspect-ratio: 1;
-        }
-
-        #reader { 
-            width: 100% !important; 
-            border: none !important; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-        }
-        #reader video { 
-            width: 100% !important; 
-            object-fit: contain !important; 
-        }
-
-        .scanner-controls {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            z-index: 10;
-        }
-
-        .control-btn {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.2);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(5px);
-            cursor: pointer;
-        }
-
-        .control-btn.active { background: var(--primary); }
-
-        /* Feedback UI */
-        #status-card {
-            background: var(--surface);
-            padding: 16px;
-            border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.1);
-            display: none;
-            text-align: center;
-            animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        @keyframes popUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-
-        .status-icon { width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 30px; }
-        .status-success { background: var(--success); }
-        .status-error { background: var(--error); }
-        .status-out { background: var(--warning); }
-
-        /* Log List */
-        .logs-section { flex: 1; overflow-y: auto; padding-bottom: 80px; }
-        .log-item {
-            background: var(--glass);
-            margin-bottom: 8px;
-            padding: 12px;
-            border-radius: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border: 1px solid rgba(255,255,255,0.05);
-        }
-        .log-meta { font-size: 11px; color: var(--secondary); margin-top: 4px; }
-        .log-badge { padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
-        .badge-in { background: rgba(34, 197, 94, 0.2); color: var(--success); }
-        .badge-out { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
-        .badge-attendance { background: rgba(99, 102, 241, 0.2); color: var(--primary); }
-
-        /* Stats Card */
-        .stats-card {
-            background: var(--surface);
-            margin: 16px 0;
-            padding: 12px;
-            border-radius: 12px;
+        .session-badge {
+            background: rgba(13, 110, 253, 0.15);
             border: 1px solid var(--primary);
-            display: none;
+            padding: 6px 12px; border-radius: 10px;
+            font-size: 0.75rem; font-weight: 700; color: var(--primary);
+            white-space: nowrap; transition: all 0.3s;
+            max-width: 180px; overflow: hidden; text-overflow: ellipsis;
         }
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-        .stats-box { background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; text-align: center; }
-        .stats-val { font-size: 20px; font-weight: 800; color: var(--primary); }
-        .item-row { display: flex; justify-content: space-between; font-size: 11px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
 
-        /* Over-Camera Manual Entry */
-        .manual-input-container {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
-            background: rgba(0,0,0,0.8);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.2);
-            padding: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transform: translateY(100px);
-            opacity: 0;
+        .mapping-badge {
+            background: rgba(59, 130, 246, 0.2); color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            padding: 6px 12px; border-radius: 10px; font-size: 0.8rem; font-weight: 600;
+            max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        .pulse-alert {
+            animation: pulse-border 2s infinite;
+            border-color: var(--warning); color: var(--warning);
+        }
+        @keyframes pulse-border {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        #context-overlay {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95);
+            z-index: 1000; display: none; flex-direction: column; padding: 20px;
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        }
+
+        .workflow-header {
+            text-align: center; margin-bottom: 25px;
+        }
+
+        .workflow-title {
+            font-size: 1.5rem; font-weight: 800; color: white; margin-bottom: 5px;
+        }
+
+        .workflow-subtitle {
+            font-size: 0.9rem; color: #94a3b8;
+        }
+
+        .branch-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 25px;
+        }
+
+        .branch-btn {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: white; padding: 15px 10px; border-radius: 16px; 
+            font-size: 0.85rem; font-weight: 600; text-align: center;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .branch-btn.active {
+            background: var(--primary); border-color: var(--primary);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.5);
+        }
+
+        .metadata-list {
+            flex: 1; overflow-y: auto; display: grid; gap: 10px;
+            padding: 5px; margin-bottom: 20px;
+        }
+
+        .metadata-item {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+            padding: 15px; border-radius: 12px; font-size: 1rem; color: #e2e8f0;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .metadata-item:active {
+            background: rgba(255,255,255,0.1); scale: 0.98;
+        }
+
+        .metadata-item.recent {
+            border-color: rgba(59, 130, 246, 0.3);
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        #status-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 80%; padding: 20px; border-radius: 24px;
+            text-align: center; backdrop-filter: blur(20px);
+            opacity: 0; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 2000; pointer-events: none;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        #status-overlay.show { opacity: 1; transform: translate(-50%, -50%); }
+
+        /* Checkbox & History */
+        #checklist-panel {
+            position: absolute; bottom: 85px; left: 16px; right: 16px;
+            max-height: 40vh; background: var(--card);
+            backdrop-filter: blur(20px); border-radius: 20px;
+            padding: 16px; overflow-y: auto; z-index: 50;
+            transform: translateY(calc(100% + 100px)); 
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.4);
+            visibility: hidden;
+        }
+        #checklist-panel.open { transform: translateY(0); visibility: visible; }
+
+        #history-panel {
+            flex: 1; background: var(--bg);
+            padding: 16px 20px 80px; overflow-y: auto;
+            position: relative; z-index: 1;
+        }
+
+        .history-item {
+            display: flex; gap: 12px; align-items: center;
+            padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.85rem; animation: slideInX 0.3s ease-out;
+        }
+        .hist-success { border-left: 3px solid var(--success); }
+        .hist-error { border-left: 3px solid var(--error); }
+        
+        @keyframes slideInX { from { transform: translateX(-10px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        .picking-row {
+            position: relative;
+            padding: 14px 18px !important;
+            border-radius: 14px;
+            overflow: hidden;
+            background: rgba(255,255,255,0.03);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-bottom: 10px;
+            border-left: 4px solid rgba(255,255,255,0.1);
+        }
+        .picking-row.in-progress { border-left-color: var(--primary); background: rgba(59, 130, 246, 0.05); }
+        .picking-row.completed { border-left-color: var(--success); background: rgba(16, 185, 129, 0.05); opacity: 0.8; }
+        
+        .progress-bg {
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            z-index: 0;
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.05) 100%);
+            transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .picking-row.completed .progress-bg {
+            background: linear-gradient(90deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%);
+        }
+        .picking-content { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .picking-name { font-size: 0.95rem; font-weight: 600; color: white; flex: 1; padding-right: 15px; }
+        .picking-qty { font-weight: 800; font-size: 1rem; color: var(--primary); white-space: nowrap; }
+        .picking-row.completed .picking-qty { color: var(--success); }
+
+        /* Floating Scan Feedback Card */
+        #scan-feedback-card {
+            position: fixed;
+            top: 20px; left: 16px; right: 16px;
+            transform: translateY(-150%);
+            background: rgba(23, 23, 23, 0.9);
+            backdrop-filter: blur(25px);
+            color: white;
+            padding: 24px;
+            border-radius: 24px;
+            z-index: 9999;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            transition: transform 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        #scan-feedback-card.show { transform: translateY(0); }
+        .feedback-header { display: flex; justify-content: space-between; align-items: center; }
+        .feedback-status { color: var(--success); font-weight: 800; font-size: 1.1rem; letter-spacing: 0.5px; }
+        .feedback-item { font-size: 1rem; font-weight: 500; opacity: 0.95; line-height: 1.4; margin: 4px 0; }
+        .feedback-progress-txt { font-weight: 900; font-size: 1.8rem; color: white; letter-spacing: -1px; }
+
+        .undo-btn {
+            background: rgba(255,255,255,0.08);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.15);
+            padding: 10px 20px;
+            border-radius: 14px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .undo-btn:active { background: var(--error); border-color: var(--error); transform: scale(0.95); }
+
+        .bottom-nav {
+            height: 70px; background: rgba(13,17,23,0.95);
+            padding-bottom: env(safe-area-inset-bottom);
+            display: flex; border-top: 1px solid rgba(255,255,255,0.05);
             z-index: 100;
         }
-        .manual-input-container.active {
-            transform: translateY(0);
-            opacity: 1;
+
+        .nav-btn {
+            flex: 1; border: none; background: none; color: #64748b;
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 4px; font-size: 0.7rem;
+            font-weight: 500; transition: all 0.3s;
+        }
+        .nav-btn.active { color: var(--primary); }
+        .nav-btn svg { width: 22px; height: 22px; margin-bottom: 2px; }
+
+        .fab {
+            position: absolute; bottom: 85px; right: 20px;
+            width: 56px; height: 56px; border-radius: 28px;
+            background: var(--primary); display: flex; align-items: center;
+            justify-content: center; box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+            border: none; color: white; z-index: 60;
         }
 
-        /* Mobile Adjustments */
-        @media (max-width: 480px) {
-            .hub-container { padding: 12px; gap: 12px; }
-            .setup-panel { padding: 16px; margin-bottom: 0; }
-            #reader-wrapper { 
-                border-radius: 16px; 
-                margin: 0 4px; 
-                aspect-ratio: 4/3;
-                height: 300px;
-                max-width: calc(100% - 8px);
-            }
-            
-            #status-card {
-                position: fixed;
-                bottom: 20px;
-                left: 20px;
-                right: 20px;
-                z-index: 1000;
-                background: rgba(15, 23, 42, 0.95);
-                backdrop-filter: blur(15px);
-                border: 1px solid var(--primary);
-                box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
-                display: none; /* Controlled by JS */
-                flex-direction: row;
-                align-items: center;
-                gap: 12px;
-                text-align: left;
-                padding: 12px 16px;
-                border-radius: 16px;
-            }
-            .status-icon { 
-                margin: 0; 
-                width: 40px; 
-                height: 40px; 
-                min-width: 40px; 
-                font-size: 20px; 
-            }
-            #status-msg-wrap { flex: 1; }
+        /* Confirmation Overlay */
+        #attendance-confirm-overlay {
+            position: fixed; inset: 0; background: rgba(13, 17, 23, 0.95);
+            z-index: 3000; display: none; flex-direction: column;
+            align-items: center; justify-content: center; padding: 30px;
+            text-align: center; backdrop-filter: blur(20px);
+            animation: fadeIn 0.3s ease;
         }
-        #manual-id {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: white;
-            font-size: 16px;
-            padding: 8px;
-            outline: none;
+
+        .confirm-card {
+            background: var(--card); width: 100%; max-width: 320px;
+            border-radius: 30px; padding: 40px 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            position: relative;
         }
-        .manual-submit-btn {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-weight: 800;
-            cursor: pointer;
+
+        .emp-photo-container {
+            width: 120px; height: 120px; border-radius: 60px;
+            background: rgba(255,255,255,0.05); margin: 0 auto 20px;
+            overflow: hidden; border: 3px solid var(--primary);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
         }
+        .emp-photo-container img { width: 100%; height: 100%; object-fit: cover; }
+
+        .confirm-title { font-size: 1.8rem; font-weight: 600; margin-bottom: 5px; }
+        .confirm-subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 30px; }
+
+        .confirm-btn {
+            width: 100%; padding: 18px; border-radius: 16px; border: none;
+            font-size: 1.1rem; font-weight: 600; cursor: pointer;
+            transition: all 0.3s; margin-bottom: 12px; position: relative; overflow: hidden;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-error { border: 2px solid var(--error); background: rgba(239, 68, 68, 0.1); color: var(--error); }
+        .btn-outline { background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); }
+
+        .timer-bar {
+            position: absolute; bottom: 0; left: 0; height: 4px;
+            background: rgba(255,255,255,0.4); width: 0%;
+            pointer-events: none;
+        }
+        .timer-bar.animate { transition: width 3s linear; width: 100%; }
+
+        .countdown-label {
+            display: block; font-size: 0.75rem; color: rgba(255,255,255,0.7);
+            margin-top: 4px; font-weight: 400; font-family: monospace;
+        }
+
+        /* Toggle Switch */
+        .setting-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .switch {
+            position: relative; display: inline-block; width: 50px; height: 26px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255,255,255,0.1); transition: .4s; border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px;
+            background-color: white; transition: .4s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        #wizard-overlay {
+            position: fixed; inset: 0; background: var(--bg);
+            z-index: 5000; display: flex; flex-direction: column;
+            padding: 40px 30px; transform: translateX(0);
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #wizard-overlay.hide { transform: translateX(-100%); }
+
+        .wizard-step { display: none; flex-direction: column; align-items: center; text-align: center; height: 100%; }
+        .wizard-step.active { display: flex; animation: slideIn 0.4s ease-out; }
+
+        @keyframes slideIn { from { transform: translateX(30px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        .wizard-icon { width: 80px; height: 80px; margin-bottom: 30px; filter: drop-shadow(0 10px 20px rgba(59, 130, 246, 0.3)); }
+        .wizard-title { font-size: 1.8rem; font-weight: 600; margin-bottom: 15px; }
+        .wizard-desc { font-size: 1rem; color: #94a3b8; line-height: 1.6; margin-bottom: 40px; }
+
+        input.wizard-input {
+            width: 100%; background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.1); padding: 16px;
+            border-radius: 12px; color: white; font-size: 1.1rem;
+            text-align: center; margin-bottom: 20px; outline: none;
+            transition: border-color 0.3s;
+        }
+        input.wizard-input:focus { border-color: var(--primary); }
+
+        .wizard-btn {
+            width: 100%; background: var(--primary); color: white;
+            padding: 18px; border-radius: 14px; border: none;
+            font-size: 1rem; font-weight: 600; margin-top: auto;
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
+        }
+
+        #settings-panel {
+            position: fixed; inset: 0; background: rgba(13,17,23,0.98);
+            z-index: 200; display: none; padding: 40px 20px;
+        }
+        .settings-grid { display: grid; gap: 15px; margin-top: 20px; }
+        .setting-box { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); }
+        .setting-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; display: block; }
+        select { background: transparent; color: white; border: none; width: 100%; font-size: 1rem; outline: none; }
+        #delivery-completion-overlay {
+            position: fixed; inset: 0; background: rgba(16, 185, 129, 0.95);
+            backdrop-filter: blur(20px); z-index: 2000;
+            display: none; flex-direction: column; padding: 40px;
+            animation: fadeIn 0.4s ease-out;
+            align-items: center; justify-content: center; text-align: center;
+        }
+        .completion-icon {
+            width: 100px; height: 100px; background: white;
+            border-radius: 50px; display: flex; align-items: center;
+            justify-content: center; font-size: 3.5rem;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(1.1); } to { opacity: 1; transform: scale(1); } }
+        
+        /* Reader Overlay Controls */
+        #scanner-container { position: relative; height: 50vh; background: #000; overflow: hidden; }
+        .reader-btn {
+            position: absolute; bottom: 20px; width: 50px; height: 50px;
+            border-radius: 25px; background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2);
+            color: white; display: flex; align-items: center; justify-content: center;
+            z-index: 10; transition: all 0.3s;
+        }
+        .reader-btn:active { transform: scale(0.9); background: var(--primary); }
+
+        .status-header {
+            padding: 12px 16px; background: rgba(13,110,253,0.05);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex; flex-direction: column; gap: 10px;
+            backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100;
+        }
+        .header-top { display: flex; justify-content: space-between; align-items: center; }
+        .header-bottom { display: none; padding-top: 5px; border-top: 1px solid rgba(255,255,255,0.05); }
+        
+        .mode-indicator {
+            background: var(--primary); color: white; padding: 4px 10px;
+            border-radius: 8px; font-size: 0.7rem; font-weight: 800; letter-spacing: 1px;
+        }
+        .session-badge {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            padding: 4px 10px; border-radius: 8px; font-size: 0.7rem; font-weight: 700; color: #94a3b8;
+        }
+        .entity-badge {
+            font-size: 1.1rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 8px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+        }
+        .count-sub-badge {
+            font-size: 0.65rem; background: rgba(13,110,253,0.2); color: var(--primary);
+            padding: 2px 6px; border-radius: 4px; margin-left: 5px;
+        }
+
+        .hist-badge { font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; text-transform: uppercase; margin-right: 8px; }
+        .hist-in { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .hist-out { background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+        .hist-fail { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .hist-reason { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; display: block; font-style: italic; }
     </style>
 </head>
 <body>
-    <div class="hub-container">
-        <!-- Tab Bar -->
-        <div class="tab-bar">
-            <button class="tab-btn active" onclick="switchTab('workforce')">Workforce</button>
-            <button class="tab-btn" onclick="switchTab('inventory')">Inventory</button>
-        </div>
 
-        <!-- Inventory Setup Panel -->
-        <div id="setup-panel" class="setup-panel">
-            <label>Scanning Mode</label>
-            <div class="mode-row">
-                <div id="mode-in" class="mode-chip active-in" onclick="setStockMode('In')">Inbound</div>
-                <div id="mode-out" class="mode-chip" onclick="setStockMode('Out')">Outbound</div>
+<div id="delivery-completion-overlay">
+    <div class="completion-icon">✅</div>
+    <div class="wizard-title" style="color: white; font-size: 2.2rem; margin-bottom: 10px;">DELIVERY VERIFIED</div>
+    <div class="wizard-desc" id="completion-summary" style="color: rgba(255,255,255,0.9); margin-bottom: 20px;">All items matched successfully!</div>
+    
+    <!-- Item Summary List -->
+    <div id="completion-items-list" style="width: 80%; max-height: 250px; overflow-y: auto; background: rgba(0,0,0,0.1); border-radius: 12px; padding: 15px; margin-bottom: 20px;"></div>
+
+    <button class="wizard-btn" style="background: white; color: var(--success); width: 250px; margin-top: 20px;" onclick="resetDeliveryScanner()">
+        START NEXT DELIVERY
+    </button>
+</div>
+
+<!-- Floating Scan Feedback Card -->
+<div id="scan-feedback-card">
+    <div class="feedback-header">
+        <div class="feedback-status" id="fb-status">ITEM MATCHED</div>
+        <div class="feedback-progress-txt" id="fb-progress">2 / 5</div>
+    </div>
+    <div class="feedback-item" id="fb-name">Product Name Loading...</div>
+    <button class="undo-btn" id="fb-undo" onclick="undoLastScan()">
+        UNDO SCAN
+    </button>
+</div>
+
+<div id="wizard-overlay">
+    <div class="wizard-step active" id="step-1">
+        <svg class="wizard-icon" viewBox="0 0 128 128"><rect width="128" height="128" rx="30" fill="#3b82f6"/><path d="M40 40h48v48H40z" fill="none" stroke="#fff" stroke-width="8"/><path d="M30 64h68M64 30v68" stroke="#fff" stroke-width="6" stroke-linecap="round"/></svg>
+        <div class="wizard-title">Warehouse Hub</div>
+        <div class="wizard-desc">Professional scanning hub with high-fidelity feedback and real-time verification.</div>
+        <button class="wizard-btn" onclick="nextStep(2)">Get Started</button>
+    </div>
+
+    <div class="wizard-step" id="step-2">
+        <div class="wizard-title">Security Check</div>
+        <div class="wizard-desc">Enter your scanner passcode. This is validated against ERPNext backend.</div>
+        <input type="password" id="wiz-passcode" class="wizard-input" placeholder="Scanner Passcode" inputmode="numeric">
+        <button class="wizard-btn" onclick="savePasscode()">Secure Login</button>
+    </div>
+
+    <div class="wizard-step" id="step-3">
+        <div class="wizard-title">Configuration</div>
+        <div class="wizard-desc">Choose your default mode. You can switch these settings anytime.</div>
+        <div class="settings-grid" style="width: 100%; margin-bottom: 20px;">
+            <div class="setting-box" onclick="selectPref('inventory')">
+                <div class="setting-label">Recommended</div>
+                <div style="font-weight: 600;">📦 Warehouse Master</div>
+                <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">Inbound, Outbound, Delivery</div>
+            </div>
+            <div class="setting-box" onclick="selectPref('staff')">
+                <div style="font-weight: 600;">👥 Staff Mode</div>
+                <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">Attendance management only</div>
             </div>
 
-            <div id="stock-fields">
-                <div id="inbound-fields">
-                    <label>Source Type</label>
-                    <select id="source_type" onchange="toggleMeta()">
-                        <option value="Production">Production</option>
-                        <option value="Purchase">Purchase</option>
-                    </select>
-                    <div id="supplier-wrap" style="display:none">
-                        <label>Supplier</label>
-                        <select id="supplier_list"></select>
+            <div style="margin-top: 30px; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 16px;">
+                <div class="setting-row" style="border: none; padding-top: 0;">
+                    <div>
+                        <div style="font-weight: 600;">⚡ Auto-Confirm</div>
+                        <div style="font-size: 0.75rem; color: #94a3b8;">Log attendance after 3s automatically</div>
                     </div>
-                </div>
-                <div id="outbound-fields" style="display:none">
-                    <label>Customer</label>
-                    <select id="customer_list"></select>
-                </div>
-            </div>
-            
-            <label>Safety Passcode</label>
-            <input type="password" id="passcode" placeholder="Required for Stock Log">
-        </div>
-
-        <!-- Scanner View -->
-        <div id="reader-wrapper">
-            <div id="reader"></div>
-            <div class="scanner-controls">
-                <div id="torch-btn" class="control-btn" onclick="toggleTorch()">🔦</div>
-                <div id="kbd-btn" class="control-btn" onclick="toggleManual()">⌨️</div>
-                <div class="control-btn" onclick="flipCamera()">🔄</div>
-            </div>
-
-            <!-- Manual Entry Bar (Hidden initially, slides up over camera) -->
-            <div id="manual-bar" class="manual-input-container">
-                <input type="text" id="manual-id" placeholder="TYPE ID MANUALLY..." onkeypress="if(event.key==='Enter')handleManualEntry()">
-                <button class="manual-submit-btn" onclick="handleManualEntry()">LOG</button>
-                <div style="cursor:pointer; padding: 0 8px;" onclick="toggleManual()">✕</div>
-            </div>
-        </div>
-
-        <!-- Feedback Card (Floating Toast on Mobile) -->
-        <div id="status-card">
-            <div id="status-icon" class="status-icon">✓</div>
-            <div id="status-msg-wrap">
-                <div id="status-title" style="font-size: 16px; font-weight: 800; margin-bottom: 2px;">Success</div>
-                <div id="status-msg" style="font-size: 12px; color: var(--secondary);">Logged successfully</div>
-            </div>
-        </div>
-
-        <!-- Session Stats -->
-        <div id="stats-panel" class="stats-card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 14px; font-weight: 700;">Session Progress</span>
-            </div>
-            <div class="stats-grid">
-                <div class="stats-box">
-                    <div id="total-scanned" class="stats-val">0</div>
-                    <div style="font-size: 10px; color: var(--secondary);">Total Cartons</div>
-                </div>
-                <div class="stats-box">
-                    <div id="item-count" class="stats-val">0</div>
-                    <div style="font-size: 10px; color: var(--secondary);">Unique Items</div>
+                    <label class="switch">
+                        <input type="checkbox" id="wizard-auto-confirm" checked>
+                        <span class="slider"></span>
+                    </label>
                 </div>
             </div>
-            <div id="item-breakdown" style="margin-top: 12px; max-height: 100px; overflow-y: auto;"></div>
         </div>
+        <button class="wizard-btn" onclick="finishWizard()">Finish Setup</button>
+    </div>
+</div>
 
-        <!-- Recent Logs -->
-        <div class="logs-section">
-            <label>Recent Scan Hub</label>
-            <div id="logs-list"></div>
+<div class="app-container">
+    <div class="status-header">
+        <div class="header-top">
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <div class="mode-indicator" id="mode-display" onclick="toggleSettings()">INBOUND</div>
+                <div class="session-badge" id="session-display" style="display: none;" onclick="confirmResetSession()">LOT: 0</div>
+            </div>
+            <div class="dn-badge" id="active-dn-display" style="display: none; cursor: pointer;" onclick="toggleChecklist(true)">FIX DN</div>
+        </div>
+        <div class="header-bottom" id="header-entity-row" onclick="promptEntityAction()">
+            <div class="entity-badge">
+                <span id="entity-icon">📍</span>
+                <span id="entity-name">SELECT CUSTOMER</span>
+                <span class="count-sub-badge" id="entity-count">0</span>
+            </div>
         </div>
     </div>
 
-    <script>
-        const INJECTED_CSRF = "{{ csrf_token }}";
-        let html5QrCode;
-        let activeTab = 'workforce';
-        let stockMode = 'In';
-        let isTorchOn = false;
-        let logs = [];
-        let sessionStats = { total: 0, items: {} };
-        const TOKEN = new URLSearchParams(window.location.search).get('token') || localStorage.getItem('manager_scanner_token');
+    <!-- Workflow Overlay -->
+    <div id="context-overlay">
+        <div class="workflow-header">
+            <div id="wf-type-badge" style="display:inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.65rem; background: var(--primary); margin-bottom: 15px; font-weight: 700; letter-spacing: 1px;">INBOUND</div>
+            <div class="workflow-title" id="wf-item-name">Checking Record...</div>
+            <div class="workflow-subtitle" id="wf-item-info">Carton: CRT-0001 | 📦 25kg</div>
+        </div>
 
-        function getCookie(name) {
-            let value = "; " + document.cookie;
-            let parts = value.split("; " + name + "=");
-            if (parts.length == 2) return parts.pop().split(";").shift();
-        }
+        <div id="source-selector" style="display: none;">
+            <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 10px; font-weight: 600;">SOURCE WORKFLOW</div>
+            <div class="branch-grid">
+                <div class="branch-btn" id="btn-Production" onclick="setBranch('Production')">Production</div>
+                <div class="branch-btn" id="btn-Purchase" onclick="setBranch('Purchase')">Purchase</div>
+                <div class="branch-btn" id="btn-Return" onclick="setBranch('Return')">Return</div>
+            </div>
+        </div>
 
-        const get_csrf_token = () => INJECTED_CSRF || getCookie('csrf_token') || '';
+        <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+            <div id="metadata-label" style="font-size: 0.8rem; color: #64748b; margin-bottom: 10px; font-weight: 600;">SELECT CUSTOMER</div>
+            <div class="metadata-list" id="metadata-results">
+                <!-- Data injected here -->
+            </div>
+        </div>
 
-        // Audio Context for synthetic feedback
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        function playTone(freq, dur) {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.frequency.value = freq; osc.type = 'sine';
-            gain.gain.setValueAtTime(0, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.01);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
-            osc.start(); osc.stop(audioCtx.currentTime + dur);
-        }
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button onclick="closeWorkflow()" style="background: rgba(255,255,255,0.05); border: none; color: #94a3b8; padding: 15px; border-radius: 12px; font-weight: 600;">CANCEL</button>
+            <button id="wf-confirm-btn" style="background: var(--success); border: none; color: white; padding: 15px; border-radius: 12px; font-weight: 700; display: none;">CONFIRM</button>
+        </div>
+    </div>
 
-        function switchTab(tab) {
-            activeTab = tab;
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.innerText.toLowerCase() === tab));
-            document.getElementById('setup-panel').classList.toggle('visible', tab === 'inventory');
-            document.getElementById('stats-panel').style.display = (tab === 'inventory') ? 'block' : 'none';
-            resetStats();
-        }
-
-        function setStockMode(mode) {
-            if (stockMode !== mode) resetStats();
-            stockMode = mode;
-            document.getElementById('mode-in').classList.toggle('active-in', mode === 'In');
-            document.getElementById('mode-out').classList.toggle('active-out', mode === 'Out');
-            document.getElementById('inbound-fields').style.display = mode === 'In' ? 'block' : 'none';
-            document.getElementById('outbound-fields').style.display = mode === 'Out' ? 'block' : 'none';
-            toggleMeta();
-        }
-
-        function toggleMeta() {
-            const src = document.getElementById('source_type').value;
-            document.getElementById('supplier-wrap').style.display = (stockMode === 'In' && src === 'Purchase') ? 'block' : 'none';
-        }
-
-        function initHub() {
-            html5QrCode = new Html5Qrcode("reader");
-            const config = { 
-                fps: 10, 
-                qrbox: 250,
-            };
+    <!-- Attendance Confirmation -->
+    <div id="attendance-confirm-overlay">
+        <div class="confirm-card">
+            <div class="emp-photo-container">
+                <img id="confirm-photo" src="" alt="">
+            </div>
+            <div class="confirm-title" id="confirm-name">...</div>
+            <div class="confirm-subtitle" id="confirm-dept">...</div>
             
-            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+            <button class="confirm-btn btn-primary" id="btn-confirm-action" onclick="confirmAttendance()">
+                <div id="confirm-action-text">CONFIRM CHECK IN</div>
+                <div id="countdown-label" class="countdown-label" style="display:none;">Auto-submitting in 3...</div>
+                <div id="confirm-timer-bar" class="timer-bar"></div>
+            </button>
+            <button class="confirm-btn btn-outline" onclick="cancelAttendance()">CANCEL</button>
+        </div>
+    </div>
+
+    <div id="status-overlay">
+        <div id="status-title"></div>
+        <div id="status-msg"></div>
+    </div>
+
+
+    <div id="scanner-container">
+        <div id="reader"></div>
+        <!-- Overlays -->
+        <button class="reader-btn" onclick="promptManualEntry()" id="btn-manual" style="left: 20px;">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="reader-btn" onclick="toggleTorch()" id="btn-torch" style="right: 20px; display: none;">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </button>
+    </div>
+
+    <div id="status-overlay">
+        <div id="status-title" style="font-size: 1.5rem; font-weight: 600; margin-bottom: 5px;">MATCH</div>
+        <div id="status-msg" style="font-size: 0.9rem; color: #cbd5e1;">Item verified successfully</div>
+    </div>
+
+    <div id="checklist-panel">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+            <div>
+                <h3 id="checklist-customer" style="margin: 0; font-size: 1rem; color: var(--text); text-transform: uppercase;">SCAN DN TO START</h3>
+                <div id="checklist-stats" style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">0 Items Total</div>
+            </div>
+            <div style="display: flex; gap: 15px;">
+                <button onclick="unloadDN()" style="background: none; border: none; color: #ef4444; font-weight: 600; font-size: 0.85rem;">UNLOAD</button>
+                <button onclick="toggleChecklist()" style="background: none; border: none; color: var(--primary); font-weight: 600; font-size: 0.85rem;">HIDE</button>
+            </div>
+        </div>
+        <div id="checklist-items"></div>
+    </div>
+
+    <div id="history-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0; font-size: 1rem;">Truck Summary</h3>
+            <button onclick="clearHistory()" style="background: none; border: none; color: #ef4444; font-size: 0.75rem;">CLEAR LIST</button>
+        </div>
+        <div id="truck-summary" style="margin-bottom: 20px; background: rgba(255,255,255,0.03); border-radius: 12px; padding: 10px;"></div>
+        <h3 style="margin: 0 0 10px 0; font-size: 0.85rem; color: #94a3b8;">Recent Scans</h3>
+        <div id="history-items"></div>
+    </div>
+
+    <div class="bottom-nav">
+        <button class="nav-btn" id="nav-inventory" onclick="setTab('inventory')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-4-9 4 9 4 9-4zM3 12l9 4 9-4M3 16l9 4 9-4"/></svg>
+            Inventory
+        </button>
+        <button class="nav-btn" id="nav-staff" onclick="setTab('staff')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+            Staff
+        </button>
+    </div>
+</div>
+
+<div id="settings-panel">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <h2 style="margin: 0;">Scanner Control</h2>
+        <button onclick="toggleSettings()" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">&times;</button>
+    </div>
+    <div class="settings-grid">
+        <div class="setting-box">
+            <span class="setting-label">Stock Mode</span>
+            <select id="stock-mode" onchange="updateStockMode()">
+                <option value="Delivery">Pick & Scan (DN Verify)</option>
+                <option value="In">Inbound</option>
+                <option value="Out">Outbound</option>
+            </select>
+        </div>
+        <div class="setting-box" id="source-type-container" style="display: none;">
+            <span class="setting-label">Source Type</span>
+            <select id="source-type" onchange="updateSourceType()">
+                <option value="Internal Production">Internal Production</option>
+                <option value="Purchase">Purchase</option>
+                <option value="Return Stock">Return Stock</option>
+            </select>
+        </div>
+        <div class="setting-box" id="supplier-container" style="display: none;">
+            <span class="setting-label">Supplier</span>
+            <input type="text" id="supplier-input" list="supplier-list" placeholder="Search Supplier..." class="wizard-input" style="padding: 8px; margin:0;" autocomplete="off" oninput="localStorage.setItem('active_supplier', this.value)">
+            <datalist id="supplier-list"></datalist>
+        </div>
+        <div class="setting-box" id="customer-container" style="display: none;">
+            <span class="setting-label">Customer</span>
+            <input type="text" id="customer-input" list="customer-list" placeholder="Search Customer..." class="wizard-input" style="padding: 8px; margin:0;" autocomplete="off" oninput="setMapping('Customer', this.value, this.value, true)">
+            <datalist id="customer-list"></datalist>
+        </div>
+        <datalist id="item-list"></datalist>
+        <div class="setting-row">
+            <div>
+                <div style="font-weight: 600; color: white;">⚡ Auto-Confirm Attendance</div>
+                <div style="font-size: 0.8rem; color: #94a3b8;">Automatically log after 3 seconds</div>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="pref-auto-confirm" onchange="updateAutoConfirm(this.checked)">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="setting-row" style="margin-top: 10px;">
+            <div style="width: 100%;">
+                <div style="font-weight: 600; color: white; margin-bottom: 5px;">Passcode</div>
+                <input type="password" id="global-passcode" class="wizard-input" style="padding: 10px; font-size: 0.9rem;" onchange="localStorage.setItem('scanner_passcode', this.value)">
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+    <button class="wizard-btn" style="margin-top: 10px; background: transparent; color: #64748b; box-shadow:none;" onclick="resetWizard()">Reset Configuration</button>
+</div>
+
+<script>
+    let html5QrCode;
+    let activeTab = 'inventory';
+    let stockMode = 'Delivery';
+    let activeDN = null;
+    let dnChecklist = {};
+    let dnMatchCount = 0;
+    let dnTotalCount = 0;
+    
+    // Global Metadata
+    let suppliersData = [];
+    let customersData = [];
+    let itemsData = [];
+    
+    // Truck & Mapping Counters
+    let truckTotal = parseInt(localStorage.getItem('scanner_truck_total') || '0');
+    let mappingCount = parseInt(localStorage.getItem('scanner_mapping_count') || '0');
+    let activeCustomer = localStorage.getItem('active_customer_id') || '';
+    let activeCustomerName = localStorage.getItem('active_customer_name') || '';
+
+    let sessionItems = JSON.parse(localStorage.getItem('scanner_session_items') || '{}');
+    let history = [];
+    let completedDNs = JSON.parse(localStorage.getItem('completed_dns') || '[]');
+    let lastScanData = null; // Stores details for the 'Undo' feature
+    let autoConfirmTimer = null;
+    let countdownInterval = null;
+    let pendingScanData = null;
+    let autoConfirmEnabled = localStorage.getItem('scanner_auto_confirm') === 'true';
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        if (type === 'success') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+        } else {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(110, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+        }
+    }
+
+    function vibrate(type) {
+        if (navigator.vibrate) {
+            if (type === 'success') navigator.vibrate([10, 30, 10]);
+            else navigator.vibrate([100, 50, 100]);
+        }
+    }
+
+    function initScanner() {
+        html5QrCode = new Html5Qrcode("reader");
+        const config = { fps: 15, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
+        html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
             .then(() => {
+                // Check if torch is supported
                 const capabilities = html5QrCode.getRunningTrackCapabilities();
-                if (!capabilities.torch) document.getElementById('torch-btn').style.display = 'none';
+                if (capabilities.torch) {
+                    document.getElementById('btn-torch').style.display = 'flex';
+                }
+            })
+            .catch(err => {
+                console.error("Scanner init error:", err);
             });
+    }
 
-            // Fetch Meta Lists for Inventory
-            fetch('/api/method/warehouse_manager.api.get_meta_lists')
-            .then(res => res.json())
-            .then(r => {
-                const msg = r.message || {};
-                const c = document.getElementById('customer_list');
-                const s = document.getElementById('supplier_list');
-                const src = document.getElementById('source_type');
+    let isScanningBlocked = false;
+    let isTorchOn = false;
 
-                if (msg.customers) {
-                    c.innerHTML = msg.customers.map(i => `<option value="${i}">${i}</option>`).join('');
-                    s.innerHTML = msg.suppliers.map(i => `<option value="${i}">${i}</option>`).join('');
-                }
-
-                // Attach Reset Listeners
-                c.addEventListener('change', resetStats);
-                s.addEventListener('change', resetStats);
-                src.addEventListener('change', resetStats);
+    function toggleTorch() {
+        if (!html5QrCode) return;
+        isTorchOn = !isTorchOn;
+        html5QrCode.applyVideoConstraints({ advanced: [{ torch: isTorchOn }] })
+            .catch(err => {
+                console.error("Torch Error:", err);
+                isTorchOn = false;
+                document.getElementById('btn-torch').style.display = 'none';
             });
+    }
+    async function onScanSuccess(decodedText) {
+        if (isScanningBlocked) return;
+        isScanningBlocked = true;
+        setTimeout(() => { isScanningBlocked = false; }, 1500); // 1.5s industrial debounce
+        
+        // 1. Identity Detection
+        const isDN = /DN-26\d+/i.test(decodedText) || 
+                     /(?:delivery-note|Delivery Note|Delivery%20Note)/i.test(decodedText.toLowerCase());
+        const isStaff = decodedText.startsWith('msqr1.');
+
+        // 2. Routing
+        if (isStaff || activeTab === 'attendance') {
+            handleAttendance(decodedText);
+            return;
         }
 
-        function onScanSuccess(text) {
-            if (activeTab === 'inventory') {
-                // Only allow Inventory scans in Inventory Tab
-                if (text.startsWith('CRT') || text.startsWith('BCH') || text.includes('carton_no')) {
-                    handleStockLog(text);
-                } else {
-                    showStatus("Wrong Tab", "Please switch to Workforce for attendance", 'error');
-                }
-            } else {
-                // Workforce Tab: Only allow attendance if not an inventory code
-                if (text.startsWith('CRT') || text.startsWith('BCH') || text.includes('carton_no')) {
-                    showStatus("Wrong Tab", "Please switch to Inventory for stock logs", 'error');
-                } else {
-                    handleAttendance(text);
-                }
-            }
+        if (isDN || stockMode === 'Delivery') {
+            handleDeliveryVerification(decodedText);
+            return;
         }
 
-        function handleManualEntry() {
-            const input = document.getElementById('manual-id');
-            const val = input.value.trim().toUpperCase();
-            if (val) {
-                onScanSuccess(val);
-                input.value = '';
-                toggleManual(); // Slide down
-            }
-        }
-
-        function toggleManual() {
-            const bar = document.getElementById('manual-bar');
-            const btn = document.getElementById('kbd-btn');
-            const isActive = bar.classList.toggle('active');
-            btn.classList.toggle('active', isActive);
-            if (isActive) document.getElementById('manual-id').focus();
-        }
-
-        function handleStockLog(text) {
-            const passcode = document.getElementById('passcode').value;
+        // 3. Intelligent Workflow (Inbound vs Outbound)
+        try {
+            showStatus("CHECKING", "Fetching carton status...", 'warning');
+            const passcode = localStorage.getItem('scanner_passcode');
             if (!passcode) {
-                showStatus("Error", "Please enter Scanner Passcode", 'error');
+                showStatus("SECURITY", "Please re-login (Passcode lost)", 'error');
+                document.getElementById('wizard-overlay').style.display = 'flex';
+                nextStep(2);
                 return;
             }
 
-            if (navigator.vibrate) navigator.vibrate(50);
+            const res = await fetch(`/api/method/warehouse_manager.api.check_carton_statuses?token=${passcode}&cartons=${encodeURIComponent(JSON.stringify([decodedText]))}`);
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                const backendMsg = errData.message || (errData._server_messages ? JSON.parse(JSON.parse(errData._server_messages)[0]).message : "Server Rejected Request");
+                throw new Error(backendMsg);
+            }
             
-            let data = text;
-            try { data = JSON.parse(text); } catch(e) {}
+            const data = await res.json();
+            if (!data.message || !data.message[0]) throw new Error("Invalid server response");
+            
+            const status = data.message[0];
 
-            const params = new URLSearchParams();
-            params.append('cartons', JSON.stringify([data]));
-            params.append('passcode', passcode);
-            params.append('mode', stockMode);
-            params.append('customer', document.getElementById('customer_list').value || '');
-            params.append('source_type', document.getElementById('source_type').value || '');
-            params.append('supplier', document.getElementById('supplier_list').value || '');
+            // 4. Strict DN Block (Early Feedback)
+            if (activeDN && status.item && status.item !== 'Unknown') {
+                const dnItems = JSON.parse(localStorage.getItem('scanner_dn_checklist') || '{}');
+                const itCode = status.item.trim().toUpperCase();
+                if (!dnItems[itCode]) {
+                    showStatus("WRONG PRODUCT", `Item ${status.item_name} not matched with DN ${activeDN.dn_id}`, 'error');
+                    playSound('error'); vibrate('error');
+                    return;
+                }
+            }
 
-            const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
-            const csrf = get_csrf_token();
-            if (csrf) headers['X-Frappe-CSRF-Token'] = csrf;
+            if (status.move_type === 'Done') {
+                showStatus("LOCKED", "This carton is already processed (In & Out)", 'error');
+                playSound('error'); vibrate('error');
+                return;
+            }
 
-            fetch('/api/method/warehouse_manager.api.log_batch', {
-                method: 'POST',
-                headers: headers,
-                body: params.toString()
-            })
-            .then(res => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-                return res.json();
-            })
-            .then(r => {
-                const msg = r.message || {};
-                if (msg.status === "success" || msg.status === "partial_success") {
-                    const result = msg.results?.[0] || {};
-                    const itemName = result.item_name || result.item || "Stock Item";
+            // Decide Workflow
+            if (status.move_type === 'Out') {
+                if (activeCustomer) {
+                    // AUTO-LOG for Outbound if customer is already set
+                    handleStockLog(decodedText, (res) => {
+                        updateSessionStats(res);
+                        playSound('success'); vibrate('success');
+                        showStatus("SUCCESS", `DISPATCHED: ${res.item_name}`, 'success');
+                    }, { mode: 'Out', customer: activeCustomer });
+                } else {
+                    showWorkflow('Out', status);
+                }
+            } else if (status.move_type === 'In') {
+                if (activeTab === 'inventory' && stockMode === 'In') {
+                    // AUTO-LOG logic if session source is already set
+                    const sourceType = document.getElementById('source-type').value;
+                    const supplier = document.getElementById('supplier-input').value;
                     
-                    if (msg.errors && msg.errors.length > 0) {
-                        const err = msg.errors[0];
-                        showStatus("Already Scanned", err, 'error');
-                        playTone(220, 0.3);
-                        // Don't add to log list if failed
+                    // Match with HTML option values: "Internal Production" and "Purchase"
+                    const isProduction = (sourceType === 'Internal Production' || sourceType === 'Production');
+                    const isPurchaseWithSupplier = (sourceType === 'Purchase' && supplier);
+
+                    if (isProduction || isPurchaseWithSupplier) {
+                        // We have enough info to auto-log
+                        const params = {
+                            mode: 'In',
+                            source_type: (sourceType === 'Internal Production' ? 'Production' : sourceType),
+                            supplier: sourceType === 'Purchase' ? supplier : null
+                        };
+                        handleStockLog(decodedText, (res) => {
+                            updateSessionStats(res);
+                            playSound('success'); vibrate('success');
+                            showStatus("SUCCESS", `STOCK IN: ${res.item_name}`, 'success');
+                        }, params);
                     } else {
-                        showStatus("Success", `Logged ${stockMode}bound: ${itemName}`, stockMode === 'In' ? 'success' : 'out');
-                        playTone(880, 0.1);
-                        addLog(text, 'stock', stockMode, itemName);
+                        // Ask the user
+                        showWorkflow('In', status);
                     }
                 } else {
-                    const err = msg.errors?.[0] || msg.message || "Scan Error";
-                    showStatus("Error", err, 'error');
-                    playTone(220, 0.3);
+                    // Wrong mode? 
+                    showWorkflow('In', status);
                 }
-            })
-            .catch(err => {
-                console.error(err);
-                showStatus("Error", `Carton Failure: ${err.message}`, 'error');
-                playTone(220, 0.3);
-            });
+                return;
+            }
+        } catch (e) {
+            console.error(e);
+            const errorMsg = e.message || "Unknown Verification Error";
+            showStatus("ERROR", errorMsg, 'error');
+            playSound('error'); vibrate('error');
+        }
+    }
 
-            html5QrCode.pause(true);
-            setTimeout(() => { hideStatus(); html5QrCode.resume(); }, 1500);
+
+    function handleDeliveryVerification(text) {
+        // Extract ID for early check
+        let detectedID = text.trim();
+        const dnPattern = /(?:Delivery%20Note|Delivery Note|delivery-note)\/([^?/\s]+)/i;
+        const match = text.match(dnPattern);
+        if (match) detectedID = match[1];
+
+        // Robust DN Detection: URL or raw DN-XXXX ID
+        const isDNID = /DN-26\d+/i.test(detectedID) || (match && match.length > 0);
+
+        // 1. Prevent reloading already active DN
+        if (activeDN && activeDN.dn_id === detectedID) {
+            showStatus("ACTIVE", "Currently verifying: " + detectedID, 'success');
+            return;
         }
 
-        function handleAttendance(text) {
-            if (navigator.vibrate) navigator.vibrate(50);
+        // 2. Prevent reloading already completed DN
+        if (completedDNs.includes(detectedID)) {
+            showStatus("VERIFIED", "Note already completed!", 'warning');
+            playSound('error'); vibrate('error');
+            return;
+        }
 
-            const params = new URLSearchParams();
-            params.append('scan_data', text);
-            params.append('token', TOKEN || '');
+        // 3. Switch logic: If it's a DN ID, load it
+        if (isDNID) {
+            // Safety confirmation if current order has scans
+            if (activeDN && dnMatchCount > 0) {
+                if (!confirm(`You have verified items for ${activeDN.dn_id}. Switch to ${detectedID}?`)) {
+                    return;
+                }
+            }
 
-            const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
-            const csrf = get_csrf_token();
-            if (csrf) headers['X-Frappe-CSRF-Token'] = csrf;
+            const passcode = localStorage.getItem('scanner_passcode');
+            if (!passcode || passcode === "null" || passcode === "undefined") {
+                showStatus("ACCESS DENIED", "Please log in first", 'error');
+                return;
+            }
+
+            // Debug Log for troubleshooting
+            console.log("Loading DN:", detectedID);
+
+            fetch(`/api/method/warehouse_manager.api.get_delivery_note_details?dn_id=${encodeURIComponent(detectedID)}&token=${encodeURIComponent(passcode)}`)
+                .then(async res => {
+                    const contentType = res.headers.get("content-type");
+                    const isJson = contentType && contentType.includes("application/json");
+                    
+                    if (!res.ok) {
+                        const errorBody = isJson ? await res.json() : null;
+                        const msg = (errorBody && errorBody.message) ? errorBody.message : 
+                                    (errorBody && errorBody.exc) ? "Server Exception" : `HTTP ${res.status}`;
+                        throw new Error(msg);
+                    }
+                    if (!isJson) {
+                        throw new Error("Invalid Server Response (HTML)");
+                    }
+                    return res.json();
+                })
+                .then(r => {
+                    const data = r.message;
+                    if (data && data.dn_id) {
+                        const isNewDN = activeDN && activeDN.dn_id !== data.dn_id;
+                        activeDN = data;
+                        
+                        // AUTOMATIC MODE SWITCH
+                        stockMode = 'Delivery';
+                        const modeSel = document.getElementById('stock-mode');
+                        if (modeSel) modeSel.value = 'Delivery';
+                        updateStockMode(); 
+
+                        setMapping('Customer', data.customer, data.customer, isNewDN);
+                        
+                        dnTotalCount = 0;
+                        dnMatchCount = 0;
+                        dnChecklist = {}; 
+                        
+                        const itemsInput = data.items || {};
+                        const itemsList = Array.isArray(itemsInput) ? itemsInput : Object.entries(itemsInput);
+                        
+                        itemsList.forEach(entry => {
+                            let it = Array.isArray(entry) ? entry[1] : entry;
+                            let key = Array.isArray(entry) ? entry[0] : null;
+                            let rawCode = it.item_code || it.item || it.code || key;
+                            if (!rawCode) return;
+                            const code = rawCode.trim().toUpperCase();
+                            const current = it.scanned_qty || 0;
+                            dnChecklist[code] = { target: it.qty, current: current, name: it.item_name || code };
+                            dnTotalCount += it.qty;
+                            dnMatchCount += (current || 0);
+                        });
+                        
+                        localStorage.setItem('scanner_active_dn', JSON.stringify(data));
+                        localStorage.setItem('scanner_dn_checklist', JSON.stringify(dnChecklist));
+                        localStorage.setItem('scanner_dn_match_count', dnMatchCount);
+                        localStorage.setItem('scanner_dn_total_count', dnTotalCount);
+
+                        const custEl = document.getElementById('checklist-customer');
+                        const statsEl = document.getElementById('checklist-stats');
+                        if (custEl) custEl.innerText = data.customer || 'NO CUSTOMER FOUND';
+                        if (statsEl) statsEl.innerText = `${dnTotalCount} Items Total`;
+                        
+                        renderSessionBadges();
+                        renderChecklist();
+                        toggleChecklist(true);
+                        showStatus("DN READY", data.dn_id, 'success');
+                        addToHistory(data.dn_id, "DN Loaded", 'success', 'Note');
+                        playSound('success'); vibrate('success');
+                        checkDeliveryCompletion();
+                    } else if (data && data.status === "error") {
+                        throw new Error(data.message || "Failed to load DN");
+                    } else {
+                        throw new Error("Malformed DN Data");
+                    }
+                })
+                .catch(err => {
+                    console.error("DN Load Error:", err);
+                    showStatus("SERVER ERROR", err.message || "Connection failed", 'error');
+                    playSound('error'); vibrate('error');
+                });
+        } else {
+            // Mode Locking: If a DN is active, we force 'Out' mode for verification
+            const effectiveMode = activeDN ? 'Out' : stockMode;
             
-            fetch('/api/method/warehouse_manager.api.mark_attendance', {
-                method: 'POST',
-                headers: headers,
-                body: params.toString()
-            })
-            .then(res => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-                return res.json();
-            })
-            .then(r => {
-                const msg = r.message || {};
-                if (msg.status === "success") {
-                    const empName = msg.message.split(' for ')[1] || "Employee";
-                    showStatus(msg.log_type, msg.message, 'success');
-                    playTone(1200, 0.1);
-                    addLog(text, 'attendance', msg.log_type, empName);
+            // First log the stock movement and resolve the item code
+            handleStockLog(text, (res, error) => {
+                // RE-LOAD Context from Storage to prevent variable desync
+                const storedDN = localStorage.getItem('scanner_active_dn');
+                const shipContext = storedDN ? JSON.parse(storedDN) : null;
+                
+                // Final Result Object from enriched API
+                const itemID = res ? (res.item || text) : text;
+                const itemName = res ? (res.item_name || itemID) : itemID; // Fail-safe to ID
+                const finalType = res ? (res.log_type || effectiveMode) : effectiveMode;
+
+                if (res && res.status === "success") {
+                    const itCode = itemID.trim().toUpperCase();
+                    const item = shipContext ? dnChecklist[itCode] : null;
+                    
+                    if (shipContext) {
+                        // Shipment Context LOCKDOWN branch
+                        if (item) {
+                            item.current++;
+                            dnMatchCount++;
+                            
+                            // PERSIST PROGRESS
+                            localStorage.setItem('scanner_dn_checklist', JSON.stringify(dnChecklist));
+                            localStorage.setItem('scanner_dn_match_count', dnMatchCount);
+
+                            updateDNBadge();
+                            renderChecklist();
+                            
+                            showStatus("SUCCESS", "PICKED: " + item.name, 'success');
+                            addToHistory(text, item.name, 'success', 'Out');
+                            playSound('success'); vibrate('success');
+                            updateSessionStats(res);
+                            checkDeliveryCompletion();
+                            
+                            // INDUSTRIAL ENHANCEMENT: SHOW SUCCESS CARD & SCROLL
+                            showScanCard(itemName, item.current, item.target, text);
+                            const rowID = `dn-row-${itCode.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                            const rowEl = document.getElementById(rowID);
+                            if (rowEl) {
+                                rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                rowEl.style.transform = 'scale(1.02)';
+                                setTimeout(() => rowEl.style.transform = 'scale(1)', 400);
+                            }
+                        } else {
+                            // Item was saved to Log but NOT in our local checklist (Unexpected)
+                            showStatus("AUDIT MISMATCH", `${itemName} not in shipment list!`, 'error');
+                            addToHistory(text, "Mismatch: " + itemName, 'error', 'Out', 'Checklist mismatch');
+                            playSound('error'); vibrate('error');
+                        }
+                    } else {
+                        // General Inventory Logic (Only if NO shipment loaded)
+                        if (finalType === 'Out' && !currentMapping.Customer) {
+                            showWorkflow('Out', res);
+                        } else {
+                            showStatus("SUCCESS", `${finalType === 'In' ? 'STOCK IN' : 'DISPATCHED'}: ${itemName}`, 'success');
+                            addToHistory(text, itemName, 'success', finalType);
+                            playSound('success'); vibrate('success');
+                            updateSessionStats(res);
+                        }
+                    }
                 } else {
-                    showStatus("Error", msg.message || "Invalid Employee QR", 'error');
-                    playTone(220, 0.3);
+                    // Rejection logic (Wrong Item, Already Processed, etc.)
+                    const errorMsg = error || (res ? res.message : "Scan Failed");
+                    const isWrongItem = errorMsg && errorMsg.includes("NOT on the shipment list") || (errorMsg && errorMsg.includes("BLOCK:"));
+                    
+                    if (isWrongItem) {
+                        showStatus("BLOCK: WRONG ITEM", errorMsg, 'error');
+                        addToHistory(text, "Blocked Item", 'error', effectiveMode, errorMsg);
+                    } else if (res && res.needs_item_selection) {
+                        showWorkflow('In', { carton_no: text, item: 'Unknown' });
+                    } else {
+                        showStatus("Scan Rejected", errorMsg, 'error');
+                        addToHistory(text, "Scan Rejected", 'error', effectiveMode, errorMsg);
+                    }
                 }
-            })
-            .catch(err => {
-                console.error(err);
-                showStatus("Error", `Employee Failure: ${err.message}`, 'error');
-                playTone(220, 0.3);
+            }, { 
+                mode: effectiveMode, 
+                delivery_note: (activeDN && activeDN.dn_id) ? activeDN.dn_id : null,
+                customer: (activeDN && activeDN.customer) ? activeDN.customer : (currentMapping.Customer || null)
+            });
+        }
+    }
+
+    // --- INDUSTRIAL SCAN FEEDBACK SYSTEM ---
+    let feedbackTimer;
+    function showScanCard(name, current, target, carton_no) {
+        const card = document.getElementById('scan-feedback-card');
+        const nameEl = document.getElementById('fb-name');
+        const progEl = document.getElementById('fb-progress');
+        const statusEl = document.getElementById('fb-status');
+        
+        if (!card) return;
+        
+        // Setup Card Data
+        nameEl.innerText = name;
+        progEl.innerText = `${current} / ${target}`;
+        statusEl.innerText = (current >= target) ? 'ITEM COMPLETED' : 'ITEM MATCHED';
+        statusEl.style.color = (current >= target) ? 'var(--success)' : '#3b82f6';
+        
+        // Save for Undo
+        lastScanData = { 
+            carton_no: carton_no, 
+            item_code: Object.keys(dnChecklist).find(k => dnChecklist[k].name === name),
+            dn_id: activeDN ? activeDN.dn_id : null
+        };
+
+        // Show Card
+        card.classList.add('show');
+        clearTimeout(feedbackTimer);
+        feedbackTimer = setTimeout(() => card.classList.remove('show'), 5000);
+    }
+
+    async function undoLastScan() {
+        if (!lastScanData) return;
+        
+        try {
+            const passcode = localStorage.getItem('scanner_passcode');
+            const res = await fetch(`/api/method/warehouse_manager.api.revert_stock_log?token=${passcode}&carton_no=${lastScanData.carton_no}&delivery_note=${lastScanData.dn_id}`);
+            const data = await res.json();
+            
+            if (data.message && data.message.status === 'success' || data.status === 'success') {
+                const itCode = lastScanData.item_code;
+                if (dnChecklist[itCode]) {
+                    dnChecklist[itCode].current--;
+                    dnMatchCount--;
+                    localStorage.setItem('scanner_dn_checklist', JSON.stringify(dnChecklist));
+                    localStorage.setItem('scanner_dn_match_count', dnMatchCount);
+                    
+                    renderChecklist();
+                    updateDNBadge();
+                    showStatus("REVERTED", "Scan Undone", 'warning');
+                    document.getElementById('scan-feedback-card').classList.remove('show');
+                    lastScanData = null;
+                }
+            } else {
+                throw new Error(data.message || "Undo failed");
+            }
+        } catch (e) {
+            showStatus("UNDO ERROR", e.message, 'error');
+        }
+    }
+
+    function checkDeliveryCompletion() {
+        if (!activeDN || !dnChecklist) return;
+        
+        let allMatched = true;
+        let totalTarget = 0;
+        
+        for (let code in dnChecklist) {
+            const item = dnChecklist[code];
+            totalTarget += item.target;
+            // Delivery is complete if we have met or exceeded target for all items
+            if (item.current < item.target) {
+                allMatched = false;
+            }
+        }
+        
+        if (allMatched && totalTarget > 0) {
+            document.getElementById('completion-summary').innerText = `Verified all ${totalTarget} items for ${activeDN.dn_id}`;
+            
+            // Populate summary list
+            const listEl = document.getElementById('completion-items-list');
+            if (listEl) {
+                listEl.innerHTML = Object.keys(dnChecklist).map(code => {
+                    const it = dnChecklist[code];
+                    const label = it.current === 1 ? 'Carton' : 'Cartons';
+                    return `
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
+                            <div style="color: white; font-size: 0.95rem; font-weight: 500; line-height: 1.2; padding-right: 15px;">${it.name || code}</div>
+                            <div style="color: #10b981; font-weight: 800; font-size: 0.95rem; white-space: nowrap;">${it.current} ${label}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            document.getElementById('delivery-completion-overlay').style.display = 'flex';
+            playSound('success');
+            setTimeout(() => playSound('success'), 200);
+            vibrate('success');
+        }
+    }
+
+    function resetDeliveryScanner() {
+        if (activeDN && activeDN.dn_id) {
+            completedDNs.push(activeDN.dn_id);
+            // Keep only last 50 to prevent storage bloat
+            if (completedDNs.length > 50) completedDNs.shift();
+            localStorage.setItem('completed_dns', JSON.stringify(completedDNs));
+        }
+
+        activeDN = null;
+        dnChecklist = {};
+        dnMatchCount = 0;
+        dnTotalCount = 0;
+        
+        // CUSTOMER RESET: Prepare for the next potential customer
+        activeCustomer = '';
+        activeCustomerName = '';
+        mappingCount = 0;
+        localStorage.removeItem('active_customer_id');
+        localStorage.removeItem('active_customer_name');
+        localStorage.removeItem('scanner_mapping_count');
+
+        // PERSIST TRUCK DATA (for multiple DNs in one truck)
+        localStorage.removeItem('scanner_active_dn');
+        localStorage.removeItem('scanner_dn_checklist');
+        localStorage.removeItem('scanner_dn_match_count');
+        localStorage.removeItem('scanner_dn_total_count');
+
+        document.getElementById('checklist-customer').innerText = 'SCAN DN TO START';
+        document.getElementById('checklist-stats').innerText = '0 Items Total';
+        updateDNBadge();
+        document.getElementById('delivery-completion-overlay').style.display = 'none';
+        toggleChecklist(false);
+        renderChecklist();
+        renderSessionBadges();
+        renderTruckSummary();
+        showStatus("READY", "Scan next Delivery Note", 'success');
+        addToHistory("System", "Next order ready", 'success', 'System');
+    }
+
+    async function handleAttendance(scan_data) {
+        // Attendance scans are blocked until confirmation or cancellation
+        try {
+            const response = await fetch(`/api/method/warehouse_manager.api.get_employee_preview?token=${localStorage.getItem('scanner_passcode')}&scan_data=${encodeURIComponent(scan_data)}`);
+            const msg = await response.json();
+            const data = msg.message;
+
+            if (data && data.employee_id) {
+                pendingScanData = scan_data;
+                
+                // Populate Confirmation UI
+                document.getElementById('confirm-name').innerText = data.employee_name || data.employee_id;
+                document.getElementById('confirm-dept').innerText = `${data.designation || 'Staff'} • ${data.department || 'Warehouse'}`;
+                document.getElementById('confirm-photo').src = data.image || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
+                
+                const actionText = data.next_log_type === 'IN' ? 'CHECK IN' : 'CHECK OUT';
+                const btn = document.getElementById('btn-confirm-action');
+                btn.className = `confirm-btn ${data.next_log_type === 'IN' ? 'btn-success' : 'btn-error'}`;
+                document.getElementById('confirm-action-text').innerText = `CONFIRM ${actionText}`;
+                
+                // Show Overlay
+                document.getElementById('attendance-confirm-overlay').style.display = 'flex';
+                
+                // Auto Confirm Trigger
+                if (autoConfirmEnabled) {
+                    const label = document.getElementById('countdown-label');
+                    const bar = document.getElementById('confirm-timer-bar');
+                    
+                    label.style.display = 'block';
+                    bar.classList.remove('animate');
+                    void bar.offsetWidth; // Force reflow
+                    bar.classList.add('animate');
+
+                    let remaining = 3;
+                    label.innerText = `Auto-submitting in ${remaining}...`;
+                    countdownInterval = setInterval(() => {
+                        remaining--;
+                        if (remaining <= 0) {
+                            clearInterval(countdownInterval);
+                            return;
+                        }
+                        label.innerText = `Auto-submitting in ${remaining}...`;
+                    }, 1000);
+
+                    autoConfirmTimer = setTimeout(() => {
+                        if (countdownInterval) clearInterval(countdownInterval);
+                        confirmAttendance();
+                    }, 3000);
+                } else {
+                    document.getElementById('countdown-label').style.display = 'none';
+                    document.getElementById('confirm-timer-bar').classList.remove('animate');
+                }
+            } else {
+                showStatus("Access Denied", msg.message || "Invalid QR Code", 'error');
+                resetScanner();
+            }
+        } catch (error) {
+            showStatus("Error", "Could not verify employee", 'error');
+            resetScanner();
+        }
+    }
+
+    async function confirmAttendance() {
+        if (autoConfirmTimer) clearTimeout(autoConfirmTimer);
+        if (countdownInterval) clearInterval(countdownInterval);
+        
+        const scan_data = pendingScanData;
+        document.getElementById('attendance-confirm-overlay').style.display = 'none';
+
+        try {
+            const response = await fetch('/api/method/warehouse_manager.api.mark_attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scan_data: scan_data,
+                    token: localStorage.getItem('scanner_passcode')
+                })
+            });
+            const msg = await response.json();
+            const res = msg.message;
+
+            if (res.status === "success") {
+                showStatus(res.log_type === "IN" ? "CHECKED IN" : "CHECKED OUT", res.employee_name, 'success');
+                addToHistory("Staff", `${res.employee_name} (${res.log_type})`, 'success', res.log_type);
+                playSound('success'); vibrate('success');
+            } else {
+                showStatus("Scan Rejected", res.message || "Attendance failed", 'error');
+                addToHistory("Staff", "Attendance Failed", 'error', 'Staff', res.message);
+                playSound('error'); vibrate('error');
+            }
+        } catch (e) {
+            showStatus("System Error", "Connection lost", 'error');
+        } finally {
+            resetScanner();
+        }
+    }
+
+    function cancelAttendance() {
+        if (autoConfirmTimer) clearTimeout(autoConfirmTimer);
+        document.getElementById('attendance-confirm-overlay').style.display = 'none';
+        resetScanner();
+    }
+
+    function resetScanner() {
+        isScanningBlocked = false;
+        pendingScanData = null;
+        if (autoConfirmTimer) clearTimeout(autoConfirmTimer);
+        if (countdownInterval) clearInterval(countdownInterval);
+        document.getElementById('confirm-timer-bar').classList.remove('animate');
+    }
+
+    function updateAutoConfirm(val) {
+        autoConfirmEnabled = val;
+        localStorage.setItem('scanner_auto_confirm', val);
+        const wToggle = document.getElementById('wizard-auto-confirm');
+        const sToggle = document.getElementById('pref-auto-confirm');
+        if (wToggle) wToggle.checked = val;
+        if (sToggle) sToggle.checked = val;
+    }
+
+    function addToHistory(id, name, type, action, reason) {
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        history.unshift({ id, name, type, time, action, reason, item_name: name, carton_no: id, success: type === 'success' });
+        if (history.length > 20) history.pop();
+        localStorage.setItem('scanner_history', JSON.stringify(history));
+        renderHistory();
+    }
+
+    function renderHistory() {
+        const el = document.getElementById('history-items');
+        if (history.length === 0) {
+            el.innerHTML = '<div style="font-size: 0.8rem; color: #64748b; text-align: center; padding: 20px;">No Recent Activity</div>';
+            return;
+        }
+
+        el.innerHTML = history.map(log => `
+            <div class="history-item ${log.success ? 'hist-success' : 'hist-error'}">
+                <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; min-width: 45px; text-align: center;">
+                    <div style="font-size: 0.65rem; color: #94a3b8;">${log.time}</div>
+                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--primary);">${log.type === 'In' ? 'IN' : 'OUT'}</div>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-size: 0.8rem; font-weight: 600; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${log.item_name}</div>
+                    <div style="font-size: 0.7rem; color: #64748b;">${log.carton_no}</div>
+                </div>
+                <div style="color: var(--success);">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function clearHistory() {
+        if (!confirm("Clear overall session and history?")) return;
+        truckTotal = 0;
+        mappingCount = 0;
+        sessionItems = {};
+        history = [];
+        
+        localStorage.removeItem('scanner_truck_total');
+        localStorage.removeItem('scanner_mapping_count');
+        localStorage.removeItem('scanner_session_items');
+        localStorage.removeItem('scanner_history');
+        
+        renderSessionBadges();
+        renderHistory();
+        showStatus("CLEARED", "Session data reset", 'success');
+    }
+
+    function updateSessionStats(res) {
+        truckTotal++;
+        mappingCount++;
+        
+        const itemCode = res.item || res.item_name || 'Unknown';
+        if (!sessionItems[itemCode]) {
+            sessionItems[itemCode] = { name: res.item_name || itemCode, qty: 0, scans: 0 };
+        }
+        sessionItems[itemCode].qty += (res.qty || 0);
+        sessionItems[itemCode].scans += 1;
+
+        // History Log
+        const logEntry = {
+            id: Date.now(),
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            item_name: res.item_name || res.item || 'Generic Item',
+            carton_no: res.carton_no || 'Manual Scan',
+            type: res.type || res.log_type || stockMode,
+            success: true
+        };
+        history.unshift(logEntry);
+        if (history.length > 50) history.pop();
+        
+        // Persist
+        localStorage.setItem('scanner_truck_total', truckTotal);
+        localStorage.setItem('scanner_mapping_count', mappingCount);
+        localStorage.setItem('scanner_session_items', JSON.stringify(sessionItems));
+        localStorage.setItem('scanner_history', JSON.stringify(history));
+        
+        renderHistory();
+        renderSessionBadges();
+        renderTruckSummary();
+    }
+
+    window.onload = () => {
+        // Load data from session
+        history = JSON.parse(localStorage.getItem('scanner_history') || '[]');
+        renderSessionBadges();
+        renderHistory();
+        fetchMetadata();
+    };
+
+    function setMapping(type, id, name, resetMappingCount = true) {
+        activeCustomer = id;
+        activeCustomerName = name;
+        if (resetMappingCount) mappingCount = 0;
+        
+        localStorage.setItem('active_customer_id', id);
+        localStorage.setItem('active_customer_name', name);
+        localStorage.setItem('scanner_mapping_count', mappingCount);
+        
+        document.getElementById('customer-input').value = name;
+        renderSessionBadges();
+    }
+
+    function promptClearCustomer() {
+        if (!activeCustomer) return;
+        if (!confirm(`Clear current customer (${activeCustomerName})?`)) return;
+        setMapping('Customer', '', '', true); // Clear it
+    }
+
+    function promptEntityAction() {
+        if (stockMode === 'In') {
+            toggleSettings(); // Open settings to change production/source
+        } else {
+            promptClearCustomer();
+        }
+    }
+
+    function renderSessionBadges() {
+        const truckEl = document.getElementById('session-display');
+        const entityRow = document.getElementById('header-entity-row');
+        const entityNameEl = document.getElementById('entity-name');
+        const entityCountEl = document.getElementById('entity-count');
+        const entityIconEl = document.getElementById('entity-icon');
+        const dnEl = document.getElementById('active-dn-display');
+        
+        // 1. Session Mode & Totals
+        if (truckEl) {
+            if (truckTotal > 0) {
+                truckEl.style.display = 'block';
+                let label = (stockMode === 'In') ? 'LOT' : 'TOTAL';
+                truckEl.innerText = `${label}: ${truckTotal}`;
+            } else {
+                truckEl.style.display = 'none';
+            }
+        }
+
+        // 2. Active Operation Row (New Line)
+        if (entityRow) {
+            entityRow.style.display = 'block';
+            if (entityCountEl) entityCountEl.innerText = mappingCount;
+
+            if (stockMode === 'Out' || stockMode === 'Delivery') {
+                if (entityIconEl) entityIconEl.innerText = '🚚';
+                
+                // DN Alert or Info (only for Delivery mode)
+                if (stockMode === 'Delivery' && dnEl) {
+                    dnEl.style.display = 'block';
+                    if (!activeDN) {
+                        dnEl.innerText = 'FIX DN';
+                        dnEl.classList.add('pulse-alert');
+                    } else {
+                        const scannedUnits = dnMatchCount || 0;
+                        const totalUnits = dnTotalCount || 0;
+                        dnEl.innerText = `${activeDN.dn_id} | ${scannedUnits} / ${totalUnits}`;
+                        dnEl.classList.remove('pulse-alert');
+                        
+                        if (scannedUnits >= totalUnits && totalUnits > 0) {
+                            dnEl.style.background = 'var(--success)';
+                            dnEl.style.color = 'white';
+                        } else {
+                            dnEl.style.background = 'rgba(13,110,253,0.1)';
+                            dnEl.style.color = 'var(--primary)';
+                        }
+                    }
+                } else if (dnEl) {
+                    dnEl.style.display = 'none';
+                }
+
+                if (entityNameEl) {
+                    if (!activeCustomer) {
+                        entityNameEl.innerText = 'FIX CUSTOMER';
+                        entityRow.classList.add('pulse-alert');
+                    } else {
+                        entityNameEl.innerText = activeCustomerName;
+                        entityRow.classList.remove('pulse-alert');
+                    }
+                }
+            } else if (stockMode === 'In') {
+                if (entityIconEl) entityIconEl.innerText = '🏭';
+                entityRow.classList.remove('pulse-alert');
+                
+                const type = document.getElementById('source-type').value;
+                if (entityNameEl) {
+                    if (type === 'Purchase') {
+                        const s = document.getElementById('supplier-input').value;
+                        entityNameEl.innerText = s || 'FIX SUPPLIER';
+                        if (!s) entityRow.classList.add('pulse-alert');
+                    } else if (type === 'Return Stock') {
+                        const c = document.getElementById('customer-input').value;
+                        entityNameEl.innerText = c || 'FIX CUSTOMER';
+                        if (!c) entityRow.classList.add('pulse-alert');
+                    } else {
+                        entityNameEl.innerText = 'INTERNAL PRODUCTION';
+                    }
+                }
+                if (dnEl) dnEl.style.display = 'none';
+            } else {
+                entityRow.style.display = 'none';
+            }
+        }
+        renderTruckSummary();
+    }
+
+    function renderTruckSummary() {
+        const el = document.getElementById('truck-summary');
+        if (Object.keys(sessionItems).length === 0) {
+            el.innerHTML = '<div style="font-size: 0.8rem; color: #64748b; text-align: center; padding: 10px;">Empty Truck</div>';
+            return;
+        }
+        
+        el.innerHTML = Object.keys(sessionItems).map(code => {
+            const it = sessionItems[code];
+            // Use scans count if available, fallback to it.qty
+            const count = it.scans || 1;
+            const label = count === 1 ? 'SCAN' : 'SCANS';
+            return `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <div style="min-width: 0; flex: 1;">
+                        <div style="font-size: 0.85rem; font-weight: 600; color: white;">${it.name}</div>
+                        <div style="font-size: 0.75rem; color: #94a3b8;">${code}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 0.9rem; font-weight: 800; color: var(--success);">${count}</div>
+                        <div style="font-size: 0.6rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">${label}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function confirmResetSession() {
+        if (confirm(`Clear all items from this Truck (${truckTotal} items)?`)) {
+            truckTotal = 0;
+            mappingCount = 0;
+            sessionItems = {};
+            localStorage.removeItem('scanner_truck_total');
+            localStorage.removeItem('scanner_mapping_count');
+            localStorage.removeItem('scanner_session_items');
+            renderSessionBadges();
+            showStatus("RESET", "Truck statistics cleared", 'warning');
+        }
+    }
+
+    function updateDNBadge() {
+        const el = document.getElementById('active-dn-display');
+        if (!el) return;
+        
+        if (!activeDN) {
+            el.style.display = 'none';
+            return;
+        }
+        
+        el.style.display = 'flex';
+        el.innerText = `${activeDN.dn_id} [${dnMatchCount} / ${dnTotalCount}]`;
+    }
+
+    function showStatus(title, msg, type) {
+        const ov = document.getElementById('status-overlay');
+        const t = document.getElementById('status-title');
+        const m = document.getElementById('status-msg');
+        ov.style.background = type === 'success' ? 'rgba(16, 185, 129, 0.9)' : 
+                             type === 'warning' ? 'rgba(245, 158, 11, 0.9)' : 'rgba(239, 68, 68, 0.9)';
+        t.innerText = title; m.innerText = msg;
+        ov.classList.add('show');
+        setTimeout(() => ov.classList.remove('show'), 2000);
+    }
+
+    function renderChecklist() {
+        const container = document.getElementById('checklist-items');
+        if (!container) return;
+        
+        container.innerHTML = Object.keys(dnChecklist).map(code => {
+            const it = dnChecklist[code];
+            const isCompleted = it.current >= it.target;
+            const progress = Math.min((it.current / it.target) * 100, 100);
+            const statusClass = isCompleted ? 'completed' : (it.current > 0 ? 'in-progress' : '');
+            const rowID = `dn-row-${code.replace(/[^a-zA-Z0-9]/g, '-')}`;
+            
+            return `
+                <div class="picking-row ${statusClass}" id="${rowID}">
+                    <div class="progress-bg" style="width: ${progress}%"></div>
+                    <div class="picking-content">
+                        <div class="picking-name">${it.name || code}</div>
+                        <div class="picking-qty">${it.current} / ${it.target}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function toggleChecklist(force) {
+        if (!activeDN && force === true) return; 
+        const p = document.getElementById('checklist-panel');
+        if (force !== undefined) p.classList.toggle('open', force);
+        else p.classList.toggle('open');
+    }
+
+    function unloadDN() {
+        if (!activeDN && !activeCustomer) {
+            showStatus("CLEAN", "No active session to unload", 'info');
+            return;
+        }
+        if (confirm(`Unload current session and discard progress?`)) {
+            activeDN = null;
+            dnChecklist = {};
+            dnMatchCount = 0;
+            dnTotalCount = 0;
+            activeCustomer = '';
+            activeCustomerName = '';
+            truckTotal = 0; // Reset session totals too on explicit unload
+            mappingCount = 0;
+            sessionItems = {};
+            
+            localStorage.removeItem('scanner_active_dn');
+            localStorage.removeItem('scanner_dn_checklist');
+            localStorage.removeItem('scanner_dn_match_count');
+            localStorage.removeItem('scanner_dn_total_count');
+            localStorage.removeItem('active_customer_id');
+            localStorage.removeItem('active_customer_name');
+            localStorage.removeItem('scanner_truck_total');
+            localStorage.removeItem('scanner_mapping_count');
+            localStorage.removeItem('scanner_session_items');
+            
+            renderSessionBadges();
+            renderChecklist();
+            renderTruckSummary();
+            toggleChecklist(false);
+            showStatus("UNLOADED", "Session discarded", 'warning');
+        }
+    }
+
+    function toggleSettings() {
+        const p = document.getElementById('settings-panel');
+        p.style.display = p.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function setTab(tab) {
+        activeTab = tab;
+        localStorage.setItem('scanner_tab', tab);
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        const btn = document.getElementById(`nav-${tab}`);
+        if (btn) btn.classList.add('active');
+        updateStockMode();
+    }
+
+    function updateStockMode() {
+        const modeEl = document.getElementById('stock-mode');
+        if (!modeEl) return;
+        
+        // Hard-Lock: If a Delivery Note is active, force 'Delivery' (Pick & Scan)
+        if (activeDN) {
+            modeEl.value = 'Delivery';
+            modeEl.disabled = true;
+            stockMode = 'Delivery';
+        } else {
+            modeEl.disabled = false;
+            stockMode = modeEl.value;
+        }
+
+        const modeLabel = (stockMode === 'Delivery') ? 'PICK & SCAN' : (stockMode === 'In' ? 'INBOUND' : 'OUTBOUND');
+        const modeDisplay = document.getElementById('mode-display');
+        if (modeDisplay) modeDisplay.innerText = modeLabel;
+        
+        const dnBadge = document.getElementById('active-dn-display');
+        const sourceCont = document.getElementById('source-type-container');
+        const suppCont = document.getElementById('supplier-container');
+        const custCont = document.getElementById('customer-container');
+
+        if (stockMode === 'Delivery') {
+            if (dnBadge) dnBadge.style.display = 'flex';
+            if (sourceCont) sourceCont.style.display = 'none';
+            if (suppCont) suppCont.style.display = 'none';
+            if (custCont) custCont.style.display = 'none';
+        } else if (stockMode === 'In') {
+            if (dnBadge) dnBadge.style.display = 'none';
+            if (sourceCont) sourceCont.style.display = 'block';
+            updateSourceType();
+        } else {
+            // Outbound
+            if (dnBadge) dnBadge.style.display = 'none';
+            if (sourceCont) sourceCont.style.display = 'none';
+            if (suppCont) suppCont.style.display = 'none';
+            if (custCont) custCont.style.display = 'block';
+            toggleChecklist(false);
+        }
+        renderSessionBadges();
+    }
+
+    function updateSourceType() {
+        const type = document.getElementById('source-type').value;
+        const suppCont = document.getElementById('supplier-container');
+        const custCont = document.getElementById('customer-container');
+
+        suppCont.style.display = (type === 'Purchase') ? 'block' : 'none';
+        custCont.style.display = (type === 'Return Stock') ? 'block' : 'none';
+    }
+
+    async function fetchMetadata() {
+        try {
+            const passcode = localStorage.getItem('scanner_passcode');
+            const response = await fetch(`/api/method/warehouse_manager.api.get_meta_lists?token=${encodeURIComponent(passcode)}`);
+            const r = await response.json();
+            const meta = r.message || {};
+            
+            suppliersData = (meta.suppliers || []).map(s => s.name || s);
+            customersData = (meta.customers || []).map(c => c.name || c);
+            itemsData = meta.items || [];
+
+            const sList = document.getElementById('supplier-list');
+            const cList = document.getElementById('customer-list');
+            const iList = document.getElementById('item-list');
+            
+            if (sList) sList.innerHTML = suppliersData.map(s => `<option value="${s}">`).join('');
+            if (cList) cList.innerHTML = customersData.map(c => `<option value="${c}">`).join('');
+            if (iList) iList.innerHTML = itemsData.map(it => `<option value="${it.name}">${it.item_name}</option>`).join('');
+            
+        } catch (e) {
+            console.error("Failed to fetch metadata", e);
+        }
+    }
+
+    function promptManualEntry() {
+        const id = prompt("Enter Carton/Employee ID:");
+        if (id) onScanSuccess(id);
+    }
+
+    function nextStep(step) {
+        document.querySelectorAll('.wizard-step').forEach(s => s.classList.remove('active'));
+        document.getElementById(`step-${step}`).classList.add('active');
+    }
+
+    function savePasscode() {
+        const p = document.getElementById('wiz-passcode').value;
+        if (!p) return alert("Enter Passcode");
+        localStorage.setItem('scanner_passcode', p);
+        document.getElementById('global-passcode').value = p;
+        nextStep(3);
+    }
+
+    function selectPref(mode) {
+        activeTab = mode;
+        localStorage.setItem('scanner_tab', mode);
+        document.querySelectorAll('.wizard-step .setting-box').forEach(b => b.style.borderColor = 'rgba(255,255,255,0.1)');
+        event.currentTarget.style.borderColor = 'var(--primary)';
+    }
+
+    function finishWizard() {
+        localStorage.setItem('scanner_setup_done', 'true');
+        localStorage.setItem('scanner_mode', 'Delivery'); // Default for first load
+        const autoConfirm = document.getElementById('wizard-auto-confirm').checked;
+        updateAutoConfirm(autoConfirm);
+        
+        document.getElementById('wizard-overlay').classList.add('hide');
+        setTimeout(() => document.getElementById('wizard-overlay').style.display = 'none', 500);
+        fetchMetadata();
+        initScanner();
+        setTab(activeTab);
+        updateStockMode();
+    }
+
+    function resetWizard() { localStorage.clear(); window.location.reload(); }
+
+    window.onload = () => {
+        if (!localStorage.getItem('scanner_setup_done')) {
+            document.getElementById('wizard-overlay').style.display = 'flex';
+        } else {
+            document.getElementById('wizard-overlay').style.display = 'none';
+            fetchMetadata();
+            activeTab = localStorage.getItem('scanner_tab') || 'inventory';
+            
+            // SMART INITIALIZATION: Default to INBOUND if no DN is loaded
+            const savedDN = localStorage.getItem('scanner_active_dn');
+            if (savedDN && savedDN !== 'null' && savedDN !== 'undefined') {
+                activeDN = JSON.parse(savedDN);
+                stockMode = 'Delivery';
+                dnChecklist = JSON.parse(localStorage.getItem('scanner_dn_checklist') || '{}');
+                dnMatchCount = parseInt(localStorage.getItem('scanner_dn_match_count') || '0');
+                dnTotalCount = parseInt(localStorage.getItem('scanner_dn_total_count') || '0');
+                
+                document.getElementById('checklist-customer').innerText = activeDN.customer || 'NO CUSTOMER FOUND';
+                document.getElementById('checklist-stats').innerText = `${dnTotalCount} Items Total`;
+                renderChecklist();
+                updateDNBadge();
+            } else {
+                stockMode = localStorage.getItem('scanner_mode') || 'In';
+                if (stockMode === 'Delivery') stockMode = 'In'; // Force reset if no DN
+            }
+            
+            const modeEl = document.getElementById('stock-mode');
+            if (modeEl) modeEl.value = stockMode;
+            document.getElementById('global-passcode').value = localStorage.getItem('scanner_passcode') || '';
+            updateAutoConfirm(autoConfirmEnabled);
+            initScanner();
+            updateStockMode();
+            renderSessionBadges();
+            setTab(activeTab);
+        }
+    };
+
+    // Intelligent Workflow Logic
+    let currentWorkflowScan = null;
+    let selectedBranch = localStorage.getItem('last_inbound_source') || 'Production';
+
+    function showWorkflow(type, data) {
+        currentWorkflowScan = data;
+        const overlay = document.getElementById('context-overlay');
+        if (!overlay) return;
+        
+        overlay.style.display = 'flex';
+        
+        const typeBadge = document.getElementById('wf-type-badge');
+        if (typeBadge) {
+            typeBadge.innerText = type.toUpperCase();
+            typeBadge.style.background = type === 'In' ? 'var(--primary)' : 'var(--success)';
+        }
+        
+        const isUnknown = (data.item === 'Unknown');
+        const nameEl = document.getElementById('wf-item-name');
+        
+        if (nameEl) {
+            if (isUnknown) {
+                nameEl.innerHTML = `
+                    <div style="color:var(--primary); font-size:0.7rem; margin-bottom:5px;">LINK TO PRODUCT:</div>
+                    <input type="text" id="wf-item-id" list="item-list" placeholder="Search Product..." class="wizard-input" style="padding:10px; font-size:0.85rem; border:1px solid var(--primary);">
+                `;
+            } else {
+                nameEl.innerText = data.item_name || data.item;
+            }
+        }
+        
+        const infoEl = document.getElementById('wf-item-info');
+        if (infoEl) {
+            const statusLabel = data.current_status ? ` [${data.current_status}]` : '';
+            infoEl.innerText = `${data.carton_no} | ${data.qty} ${data.uom || ''}${statusLabel}`;
+        }
+
+        const sourceSel = document.getElementById('source-selector');
+        const resultsPop = document.getElementById('metadata-results');
+        if (type === 'In') {
+            if (sourceSel) sourceSel.style.display = 'block';
+            if (resultsPop) resultsPop.innerHTML = '';
+        } else {
+            if (sourceSel) sourceSel.style.display = 'none';
+            // Trigger customer selection immediately for general Outbound scans
+            renderMetadataList('Customer');
+        }
+    }
+
+    function setBranch(branch, triggerProcess = true) {
+        selectedBranch = branch;
+        localStorage.setItem('last_inbound_source', branch);
+        
+        document.querySelectorAll('.branch-btn').forEach(b => b.classList.remove('active'));
+        const btn = document.getElementById(`btn-${branch}`);
+        if (btn) btn.classList.add('active');
+
+        if (branch === 'Production') {
+            if (triggerProcess) processWorkflowLog('Production');
+            else {
+                const list = document.getElementById('metadata-results');
+                list.innerHTML = '<button onclick="processWorkflowLog(\'Production\')" style="width:100%; border:none; background:var(--primary); color:white; padding:15px; border-radius:12px; font-weight:700;">PROCEED WITH PRODUCTION</button>';
+            }
+        } else if (branch === 'Purchase') {
+            renderMetadataList('Supplier');
+        } else if (branch === 'Return') {
+            renderMetadataList('Customer');
+        }
+    }
+
+    function renderMetadataList(type) {
+        const label = document.getElementById('metadata-label');
+        const list = document.getElementById('metadata-results');
+        label.innerText = `SELECT ${type.toUpperCase()}`;
+        list.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b;">Loading list...</div>';
+
+        const data = type === 'Supplier' ? suppliersData : customersData;
+        
+        list.innerHTML = (data || []).map(item => `
+            <div class="metadata-item" onclick="processWorkflowLog('${type}', '${item}')">
+                <div>${item}</div>
+                <div style="color:var(--primary); font-size:0.8rem;">SELECT</div>
+            </div>
+        `).join('');
+    }
+
+    async function handleStockLog(scanData, callback, extraParams = {}) {
+        try {
+            const passcode = localStorage.getItem('scanner_passcode');
+            const payload = {
+                scan_data: scanData,
+                manager_token: passcode,
+                log_type: extraParams.mode || stockMode, 
+                delivery_note: (activeDN && activeDN.dn_id) ? activeDN.dn_id : null,
+                ...extraParams
+            };
+
+
+            const response = await fetch('/api/method/warehouse_manager.api.handle_stock_log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
 
-            html5QrCode.pause(true);
-            setTimeout(() => { hideStatus(); html5QrCode.resume(); }, 1500);
-        }
-
-        function showStatus(title, msg, type) {
-            const card = document.getElementById('status-card');
-            const icon = document.getElementById('status-icon');
-            icon.className = `status-icon status-${type}`;
-            icon.innerText = type === 'error' ? '!' : '✓';
-            document.getElementById('status-title').innerText = title;
-            document.getElementById('status-msg').innerText = msg;
-            card.style.display = 'flex';
-        }
-
-        function hideStatus() { document.getElementById('status-card').style.display = 'none'; }
-
-        function addLog(id, app, type, name) {
-            const list = document.getElementById('logs-list');
-            const item = document.createElement('div');
-            item.className = 'log-item';
-            const badgeClass = app === 'attendance' ? 'badge-attendance' : (type === 'In' ? 'badge-in' : 'badge-out');
+            const r = await response.json();
             
-            // Clean ID display
-            const displayId = id.length > 25 ? 'Internal Scan' : id;
-            const displayName = name || displayId;
 
-            item.innerHTML = `
-                <div>
-                    <div style="font-weight:700">${displayName}</div>
-                    <div class="log-meta">${displayId !== displayName ? displayId + ' • ' : ''}${new Date().toLocaleTimeString()} • ${app.toUpperCase()}</div>
-                </div>
-                <div class="log-badge ${badgeClass}">${type}</div>
-            `;
-            list.prepend(item);
+            const res = r.message;
 
-            if (app === 'stock') updateStats(name);
+            if (res && res.status === "success") {
+                // FALLBACK: Ensure item fields are not null/undefined
+                if (!res.item) res.item = scanData;
+                if (!res.item_name) res.item_name = scanData;
+                if (!res.carton_no) res.carton_no = scanData;
+
+                if (callback) callback(res);
+            } else {
+                // Return even error responses to the callback for specialized handling (e.g. Wrong Item in DN)
+                if (callback) {
+                    callback(res, res ? res.message : "Connection error");
+                } else if (res && res.needs_item_selection) {
+                    showWorkflow('In', { carton_no: scanData, item: 'Unknown' });
+                } else {
+                    const finalMsg = res ? (res.message || res.status) : "Server returned invalid response";
+                    showStatus("Action Failed", finalMsg, 'error');
+                    playSound('error'); vibrate('error');
+                }
+            }
+        } catch (e) {
+            console.error("handleStockLog Error:", e);
+            if (callback) callback(null, e.message);
+            else showStatus("System Error", "Communication failure: " + e.message, 'error');
+        }
+    }
+
+    function processWorkflowLog(branchType, actorName = '') {
+        if (!currentWorkflowScan) return;
+        
+        const badgeText = document.getElementById('wf-type-badge').innerText;
+        const logType = (badgeText === 'IN' || badgeText === 'INBOUND') ? 'In' : 'Out';
+        
+        // Manual Item Selection for Unknown Cartons
+        const manualItemInput = document.getElementById('wf-item-id');
+        const itemCode = manualItemInput ? manualItemInput.value : (currentWorkflowScan.item !== 'Unknown' ? currentWorkflowScan.item : null);
+
+        // Exact mapping for handle_stock_log in api.py
+        const params = {
+            mode: logType, 
+            item_code: itemCode,
+            source_type: (logType === 'In') ? (branchType === 'Production' ? 'Production' : branchType) : null,
+            customer: (logType === 'Out' || branchType === 'Return') ? (actorName || activeCustomer) : null,
+            supplier: (logType === 'In' && branchType === 'Purchase') ? actorName : null,
+            delivery_note: (activeDN && activeDN.dn_id) ? activeDN.dn_id : null
+        };
+
+        // Strict DN Validation for manual selection
+        if (activeDN && itemCode) {
+            const dnItems = JSON.parse(localStorage.getItem('scanner_dn_checklist') || '{}');
+            const itCode = itemCode.trim().toUpperCase();
+            if (!dnItems[itCode]) {
+                showStatus("WRONG PRODUCT", `Item ${itemCode} not matched with DN ${activeDN.dn_id}`, 'error');
+                playSound('error'); vibrate('error');
+                return;
+            }
         }
 
-        function updateStats(itemName) {
-            sessionStats.total++;
-            sessionStats.items[itemName] = (sessionStats.items[itemName] || 0) + 1;
-            renderStats();
-        }
+        handleStockLog(currentWorkflowScan.carton_no, (res, error) => {
+            if (res && res.status === "success") {
+                // SUCCESS: Record the log, update mode/mapping, and close the UI
+                
+                // STICKY SELECTION: Set global mode so next scans are auto-logged
+                if (logType === 'In') {
+                    const modeEl = document.getElementById('stock-mode');
+                    const sourceEl = document.getElementById('source-type');
+                    if (modeEl) modeEl.value = 'In';
+                    const finalSource = branchType === 'Production' ? 'Internal Production' : 
+                                      branchType === 'Purchase' ? 'Purchase' : 'Return Stock';
+                    if (sourceEl) {
+                        sourceEl.style.display = 'block';
+                        sourceEl.value = finalSource;
+                    }
+                    
+                    if (branchType === 'Purchase' && actorName) {
+                        const suppEl = document.getElementById('supplier-input');
+                        if (suppEl) suppEl.value = actorName;
+                    }
+                    if (branchType === 'Return' && actorName) {
+                        const custEl = document.getElementById('customer-input');
+                        if (custEl) custEl.value = actorName;
+                    }
+                    updateStockMode(); 
+                } else if (logType === 'Out') {
+                    const modeEl = document.getElementById('stock-mode');
+                    if (modeEl) modeEl.value = 'Out';
+                    if (actorName) {
+                        setMapping('Customer', actorName, actorName, true);
+                    }
+                    updateStockMode();
+                }
 
-        function resetStats() {
-            sessionStats = { total: 0, items: {} };
-            renderStats();
-        }
+                updateSessionStats(res);
+                
+                // If it was part of a DN, refresh the checklist
+                if (activeDN && res.log_type === 'Out') {
+                    const itCode = res.item || itemCode;
+                    if (dnChecklist[itCode]) {
+                        dnChecklist[itCode].current++;
+                        dnMatchCount++;
+                        updateDNBadge();
+                        renderChecklist();
+                    }
+                }
+                
+                checkDeliveryCompletion();
+                playSound('success'); vibrate('success');
+                showStatus("SUCCESS", `${logType === 'In' ? 'STOCK IN' : 'DISPATCHED'}: ${res.item_name}`, 'success');
+                
+                // Only close on success
+                closeWorkflow();
+            } else {
+                // FAILURE: Show error and KEEP the workflow open so user can fix it
+                const errorMsg = error || (res ? res.message : "Process Failed");
+                showStatus("BLOCK", errorMsg, 'error');
+                playSound('error'); vibrate('error');
+            }
+        }, params);
+    }
 
-        function renderStats() {
-            document.getElementById('total-scanned').innerText = sessionStats.total;
-            const uniqueItems = Object.keys(sessionStats.items).length;
-            document.getElementById('item-count').innerText = uniqueItems;
-
-            const breakdown = document.getElementById('item-breakdown');
-            breakdown.innerHTML = Object.entries(sessionStats.items)
-                .map(([name, count]) => `
-                    <div class="item-row">
-                        <span>${name}</span>
-                        <span style="font-weight:700">${count}</span>
-                    </div>
-                `).join('');
-        }
-
-        function toggleTorch() {
-            isTorchOn = !isTorchOn;
-            html5QrCode.applyVideoConstraints({ advanced: [{ torch: isTorchOn }] })
-            .then(() => document.getElementById('torch-btn').classList.toggle('active', isTorchOn));
-        }
-
-        function flipCamera() {
-            html5QrCode.stop().then(() => initHub());
-        }
-
-        window.onload = initHub;
-    </script>
+    function closeWorkflow() {
+        document.getElementById('context-overlay').style.display = 'none';
+        currentWorkflowScan = null;
+    }
+</script>
 </body>
 </html>

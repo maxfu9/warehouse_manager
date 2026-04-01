@@ -22,15 +22,15 @@ except ImportError:
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "warehouse_manager",
-# 		"logo": "/assets/warehouse_manager/logo.png",
-# 		"title": "Warehouse Management Hub",
-# 		"route": "/warehouse_manager",
-# 		"has_permission": "warehouse_manager.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "warehouse_manager",
+		"logo": "/assets/warehouse_manager/logo.png",
+		"title": "Warehouse Hub",
+		"route": "/scanner",
+		"has_permission": "warehouse_manager.api.has_app_permission"
+	}
+]
 
 # Includes in <head>
 # ------------------
@@ -85,6 +85,7 @@ doctype_js = {
 
 website_route_rules = [
     {"from_route": "/stock-scanner", "to_route": "scanner"},
+    {"from_route": "/scanner", "to_route": "warehouse_manager.api.get_scanner_page"},
 ]
 
 # Jinja

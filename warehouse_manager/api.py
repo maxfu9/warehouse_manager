@@ -10,24 +10,46 @@ import pyqrcode
 from frappe import _
 from frappe.utils import cint, flt, now_datetime, time_diff_in_seconds
 from hrms.hr.doctype.employee_checkin.employee_checkin import validate_active_employee
+from urllib.parse import unquote
+import re
+import json
+import hashlib
+import hmac
+import math
+import base64
 
 DEFAULT_SCAN_COOLDOWN_SECONDS = 60
 DEFAULT_ALLOWED_RADIUS_METERS = 100
 SIGNED_QR_PREFIX = "msqr1"
-SETTINGS_DOCTYPE = "Manager Scanner Settings"
+SETTINGS_DOCTYPE = "Stock Log Settings"
 
 
 def get_warehouse_manager_settings():
 	return frappe.get_cached_doc(SETTINGS_DOCTYPE)
 
 
-def validate_token(token):
+def validate_token(token=None):
 	if not token:
-		frappe.throw(_("Missing token"), frappe.PermissionError)
+		if frappe.session.user != "Guest":
+			return True
+		frappe.throw(_("Missing scanner passcode"), frappe.PermissionError)
 
-	manager_token = frappe.db.get_single_value(SETTINGS_DOCTYPE, "manager_token")
-	if not manager_token or token != manager_token:
-		frappe.throw(_("Invalid token"), frappe.PermissionError)
+	try:
+		token = str(token).strip()
+		settings = get_warehouse_manager_settings()
+		stored_passcode = (settings.get_password("passcode") or "").strip()
+		
+		if not stored_passcode:
+			frappe.throw(_("Passcode not set in {0}").format(SETTINGS_DOCTYPE), frappe.PermissionError)
+			
+		if token != stored_passcode:
+			frappe.throw(_("Invalid Passcode. Please check {0} in ERPNext.").format(SETTINGS_DOCTYPE), frappe.PermissionError)
+	except frappe.ValidationError as e:
+		raise e
+	except Exception as e:
+		if "Invalid Passcode" in str(e) or "not set" in str(e):
+			raise e
+		frappe.throw(_("Security Error: {0}").format(str(e)), frappe.PermissionError)
 
 
 def get_scan_cooldown_seconds():
@@ -273,10 +295,6 @@ def get_recent_scans(token=None, limit=5):
 
 @frappe.whitelist(allow_guest=True)
 def mark_attendance(scan_data=None, employee_id=None, log_type=None, token=None, latitude=None, longitude=None):
-	"""
-	Mark employee attendance via QR scan.
-	Guest accessible if the token matches the Warehouse Management Hub Token.
-	"""
 	validate_token(token)
 
 	scan_data = scan_data or employee_id
@@ -296,10 +314,12 @@ def mark_attendance(scan_data=None, employee_id=None, log_type=None, token=None,
 		doc.latitude = flt(latitude) if latitude is not None else None
 		doc.longitude = flt(longitude) if longitude is not None else None
 		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
 
 		return {
 			"status": "success",
 			"log_type": resolved_log_type,
+			"employee_name": doc.employee_name or doc.employee,
 			"message": _("Attendance marked as {0} for {1}").format(
 				resolved_log_type, doc.employee_name or doc.employee
 			),
@@ -311,268 +331,403 @@ def mark_attendance(scan_data=None, employee_id=None, log_type=None, token=None,
 			"message": str(e)
 		}
 
+
 @frappe.whitelist(allow_guest=True)
 def get_scanner_page(token=None):
-	"""
-	Returns the raw scanner HTML.
-	Bypasses all layout/theme engine.
-	"""
-	try:
-		validate_token(token)
-	except Exception:
-		return "<h1>Invalid token</h1>"
-		
 	app_path = frappe.get_app_path('warehouse_manager')
-	# We'll use a version of scanner.html that is truly standalone
 	html_path = os.path.join(app_path, 'www', 'scanner.html')
 	if not os.path.exists(html_path):
 		html_path = os.path.join(app_path, 'warehouse_manager', 'www', 'scanner.html')
 	
 	if not os.path.exists(html_path):
-		return f"<h1>Error: scanner.html not found at {html_path}</h1>"
+		return f"<h1>Error: scanner.html not found</h1>"
 		
 	html = frappe.read_file(html_path)
-	
-	# Inject CSRF token and Site Name for PWA context
 	html = html.replace('{{ csrf_token }}', frappe.session.csrf_token or '')
-	
 	from werkzeug.wrappers import Response
 	return Response(html, mimetype='text/html')
 
-@frappe.whitelist()
-def create_fallback_web_page():
-	"""
-	Create a Web Page that redirects to our raw API view.
-	Also ensures default settings are initialized.
-	"""
-	# Initialize Settings
-	if not frappe.db.exists(SETTINGS_DOCTYPE):
-		doc = frappe.get_doc({
-			"doctype": SETTINGS_DOCTYPE,
-			"manager_token": "manager123",
-			"scan_cooldown_seconds": 60,
-			"allowed_radius_meters": 100
-		})
-		doc.insert(ignore_permissions=True)
-		frappe.db.commit()
-
-	name = frappe.db.get_value('Web Page', {'route': 'scanner'}, 'name')
-	if name:
-		doc = frappe.get_doc('Web Page', name)
-	else:
-		doc = frappe.new_doc('Web Page')
-		doc.title = 'Warehouse Management Hub Redirect'
-		doc.route = 'scanner'
-		
-	doc.published = 1
-	doc.full_width = 1
-	doc.show_title = 0
-	# Redirect via JS
-	redirect_html = """
-	<script>
-		const urlParams = new URLSearchParams(window.location.search);
-		const token = urlParams.get('token') || 'manager123';
-		window.location.href = '/api/method/warehouse_manager.api.get_scanner_page?token=' + token;
-	</script>
-	<p>Redirecting to scanner...</p>
-	"""
-	# Frappe stores HTML pages in `main_section_html` when `content_type` is `HTML`.
-	doc.main_section = redirect_html
-	doc.main_section_html = redirect_html
-	doc.content_type = 'HTML'
-	doc.save(ignore_permissions=True)
-	frappe.db.commit()
-	
-	return f"Web Page '{doc.name}' and Settings initialized."
-
-def generate_qr_svg(data):
-	"""Generate an inline SVG QR code string. Safe to call from Jinja print templates."""
-	if not data:
-		return ""
-	qr = pyqrcode.create(str(data), error="L")
-	stream = BytesIO()
-	qr.svg(stream, scale=5, background="white", module_color="black")
-	return stream.getvalue().decode()
-
 
 @frappe.whitelist(allow_guest=True)
-def get_meta_lists():
+def get_meta_lists(token=None):
+	validate_token(token)
 	return {
 		"customers": frappe.get_all("Customer", pluck="name", order_by="name asc", limit=500),
-		"suppliers": frappe.get_all("Supplier", pluck="name", order_by="name asc", limit=500)
+		"suppliers": frappe.get_all("Supplier", pluck="name", order_by="name asc", limit=500),
+		"items": frappe.get_all("Item", filters={"disabled": 0, "is_stock_item": 1}, fields=["name", "item_name"], order_by="name asc", limit=1000)
 	}
 
 
 @frappe.whitelist(allow_guest=True)
-def log_batch(cartons, passcode, mode=None, customer=None, source_type=None, supplier=None):
-	# 1. Verify Passcode
-	settings = frappe.get_single("Stock Log Settings")
-	if passcode != settings.get_password("passcode"):
-		frappe.throw(_("Invalid Passcode"), frappe.PermissionError)
-
-	# 2. Parse Cartons
-	if isinstance(cartons, str):
-		cartons = json.loads(cartons)
-
-	results = []
-	logs_created = 0
-	errors = []
-
-	for doc in cartons:
-		try:
-			# Handle both new RAW ID (String) and Legacy JSON format
-			if isinstance(doc, str):
-				# It is a raw ID like CRT2026030043EU
-				carton_no = doc
-				record = frappe.get_doc("Carton QR", carton_no)
-				item_code = record.item
-				qty = record.qty
-				uom = record.uom
-				signature = None # Skip signature for raw internal scans
-			else:
-				# Legacy JSON format
-				item_code = doc.get("item")
-				carton_no = doc.get("carton_no")
-				qty = doc.get("qty")
-				uom = doc.get("uom")
-				signature = doc.get("signature")
-
-				# 3. Verify HMAC (only for JSON payload)
-				message = f"{item_code}|{carton_no}|{qty}".encode()
-				key = settings.get_password("hmac_secret").encode()
-				expected_signature = hmac.new(key, message, hashlib.sha256).hexdigest()
-
-				if signature != expected_signature:
-					errors.append(f"Invalid signature for carton {carton_no}")
-					continue
-
-			# 4. Auto In/Out Logic
-			previous_logs = frappe.get_all("Stock Log", filters={"carton_no": carton_no}, order_by="creation asc")
+def get_delivery_note_details(token, dn_id):
+	try:
+		if not token or token == "null" or token == "undefined":
+			frappe.throw(_("Scanner passcode is required. Please log in again."), frappe.PermissionError)
 			
-			log_type = "In"
-			if len(previous_logs) == 1:
-				log_type = "Out"
-			elif len(previous_logs) >= 2:
-				raise Exception(f"Carton {carton_no} already processed (In & Out)")
+		validate_token(token)
+		dn_id = unquote((dn_id or "").strip())
+		
+		# Extract DN ID from URL if necessary
+		if "/" in dn_id:
+			match = re.search(r"(?:Delivery Note|delivery-note)/([^?/\s]+)", dn_id, re.IGNORECASE)
+			if match:
+				dn_id = match.group(1)
 
-			# 4.1. Explicit Mode Check to avoid duplicate 'In' or 'Out'
-			current_status = frappe.get_value("Carton QR", carton_no, "status")
-			if mode == "In" and current_status == "In Stock":
-				raise Exception(f"Carton {carton_no} is already IN STOCK")
-			if mode == "Out" and current_status == "Dispatched":
-				raise Exception(f"Carton {carton_no} is already DISPATCHED")
+		if not frappe.db.exists("Delivery Note", dn_id):
+			frappe.throw(_("Delivery Note {0} not found in database").format(dn_id))
 
-			# 5. Mode Enforcement
-			if mode and mode != log_type:
-				if mode == "In":
-					raise Exception(f"Carton {carton_no} is already In-Stock. Switch to Outbound to dispatch.")
-				else:
-					raise Exception(f"Carton {carton_no} is NOT in-stock yet. Log Inbound first.")
+		dn = frappe.get_doc("Delivery Note", dn_id)
+		if dn.docstatus == 2:
+			frappe.throw(_("Delivery Note {0} is cancelled").format(dn_id))
 
-			# 6. Fetch Batch from Carton QR record
-			batch = frappe.db.get_value("Carton QR", {"carton_no": carton_no}, "batch")
+		items = {}
+		for item in dn.items:
+			if item.item_code not in items:
+				items[item.item_code] = {"item_code": item.item_code, "qty": 0, "item_name": item.item_name, "scanned_qty": 0}
+			items[item.item_code]["qty"] += flt(item.qty)
 
-			# 7. Create Log
-			item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
-			new_log = frappe.get_doc({
-				"doctype": "Stock Log",
+		# Use Stock Log (actual scanner logs) to find already processed items
+		processed_logs = frappe.get_all("Stock Log", 
+			filters={"delivery_note": dn_id, "type": "Out"}, 
+			fields=["item", "qty"]
+		)
+		for log in processed_logs:
+			if log.item in items:
+				# COUNT records (scans) instead of summing qty to match carton workflow
+				items[log.item]["scanned_qty"] += 1
+
+		# SMART VALIDATION: Check if DN is already fully scanned (all items met target scan count)
+		if items:
+			all_done = True
+			for code, it in items.items():
+				if flt(it["scanned_qty"]) < flt(it["qty"]):
+					all_done = False
+					break
+			
+			if all_done:
+				frappe.throw(_("ALREADY DISPATCHED: Delivery Note {0} has already been fully scanned.").format(dn_id))
+
+		return {
+			"dn_id": dn_id,
+			"customer": dn.customer,
+			"items": items
+		}
+	except Exception as e:
+		frappe.log_error(f"DN Details Error: {str(e)}", "Scanner API")
+		return {
+			"status": "error",
+			"message": str(e)
+		}
+
+
+@frappe.whitelist(allow_guest=True)
+def handle_stock_log(**kwargs):
+	"""Enhanced processor with Deep Trace for debugging DN bypass."""
+	try:
+		# 1. Parameter Extraction (Robust Capture)
+		params = frappe._dict(kwargs)
+		if not params: params = frappe.form_dict
+		
+		manager_token = params.get("manager_token")
+		scan_data = params.get("scan_data")
+		log_type = params.get("log_type")
+		delivery_note = params.get("delivery_note")
+		customer = params.get("customer")
+		item_code = params.get("item_code")
+		source_type = params.get("source_type")
+		supplier = params.get("supplier")
+		
+		validate_token(manager_token)
+		
+		if not scan_data:
+			frappe.throw(_("Scan data missing"))
+		
+		# 2. Logic Check & Context Resolution
+		carton_no = scan_data
+		if '|' in scan_data:
+			parts = scan_data.split('|')
+			if len(parts) >= 3:
+				item_code, carton_no, qty_val = parts[0], parts[1], flt(parts[2])
+		
+		if frappe.db.exists("Carton QR", carton_no):
+			c = frappe.get_doc("Carton QR", carton_no)
+			item_code = c.item if not item_code else item_code
+			qty = c.qty
+		else:
+			qty = 1 
+
+		# Resolved Item Code
+		curr_item = str(item_code or "").strip().upper()
+
+		# CRITICAL: If no item code resolved, we can't process further
+		if not curr_item or curr_item == "":
+			if not params.get("item_code"):
+				return {
+					"status": "error", 
+					"message": _("New Carton {0}: Item code unknown. Please select a Product.").format(carton_no),
+					"needs_item_selection": True
+				}
+
+		# 3. DEEP TRACE: GLOBAL DELIVERY NOTE LOCKDOWN
+		if delivery_note:
+			# Normalize DN ID
+			clean_dn = unquote((delivery_note or "").strip())
+			if "/" in clean_dn:
+				match = re.search(r"(?:Delivery Note|delivery-note)/([^?/\s]+)", clean_dn, re.IGNORECASE)
+				if match: clean_dn = match.group(1)
+			
+			# Fetch all items in this DN (Case-Insensitive list)
+			dn_results = frappe.get_all("Delivery Note Item", filters={"parent": clean_dn}, fields=["item_code"])
+			dn_items = [i.item_code.strip().upper() for i in dn_results]
+			
+			# FINAL TRACE: Show exactly what is being matched
+
+			if curr_item not in dn_items:
+				mismatch_err = _("WRONG PRODUCT: Item {0} not matched with DN {1}").format(curr_item, clean_dn)
+				frappe.throw(mismatch_err)
+			
+			# QUANTITY HARD BLOCK: Don't allow more scans than required by DN
+			# We filter by parent and item_code because multiple rows of the same item are summed by Frappe in get_value or logic
+			target_qty = frappe.db.get_value("Delivery Note Item", 
+											  {"parent": clean_dn, "item_code": curr_item}, "qty") or 0
+			current_scans = frappe.db.count("Stock Log", 
+											 {"delivery_note": clean_dn, "item": curr_item, "type": "Out"})
+			
+			if current_scans >= flt(target_qty):
+				frappe.throw(_("TARGET REACHED: Item {0} is already fully picked ({1}/{1} cartons).").format(curr_item, int(target_qty)))
+
+		# 4. Standard Sequence Checks
+		current_status = frappe.db.get_value("Carton QR", carton_no, "status") or "New"
+		if log_type == "In" and current_status in ["In Stock", "Dispatched"]:
+			frappe.throw(_("Sequence Error: Carton {0} is currently {1}. Cannot scan 'In' again.").format(carton_no, current_status))
+		
+		if log_type == "Out" and current_status != "In Stock":
+			if current_status == "Dispatched":
+				frappe.throw(_("Sequence Error: Carton {0} has already been Dispatched.").format(carton_no))
+			else:
+				frappe.throw(_("Sequence Error: Carton {0} must be marked as 'In Stock' before it can be Dispatched (Current: {1}).").format(carton_no, current_status))
+		
+		# For Pick & Scan, it is ALWAYS an outbound log
+		final_type = log_type or ("Out" if (current_status == "In Stock" or delivery_note) else "In")
+		if delivery_note:
+			final_type = "Out"
+
+		# 5. Create Log
+		item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
+		batch = frappe.db.get_value("Carton QR", carton_no, "batch")
+		
+		doc = frappe.new_doc("Stock Log")
+		doc.update({
+			"item": item_code,
+			"carton_no": carton_no,
+			"batch": batch,
+			"type": final_type,
+			"qty": qty,
+			"delivery_note": clean_dn if (final_type == "Out" and 'clean_dn' in locals()) else (delivery_note if final_type == "Out" else None),
+			"customer": customer if final_type == "Out" else None,
+			"source_type": source_type if final_type == "In" else None,
+			"supplier": supplier if (final_type == "In" and source_type == "Purchase") else None,
+			"scan_time": now_datetime()
+		})
+		doc.insert(ignore_permissions=True)
+
+		# 6. Update or Create Status
+		new_status = "In Stock" if final_type == "In" else "Dispatched"
+		
+		# Propagate to THE specific carton/batch record itself
+		if frappe.db.exists("Carton QR", carton_no):
+			frappe.db.set_value("Carton QR", carton_no, "status", new_status)
+		
+		# Propagate to ALL individual cartons linked to this batch ID
+		# This ensures that scanning a Batch QR for "Inbound" marks all its contents as "In Stock"
+		frappe.db.set_value("Carton QR", {"batch": (carton_no or "").strip()}, "status", new_status, update_modified=True)
+
+		if not frappe.db.exists("Carton QR", carton_no) and final_type == "In":
+			# Auto-create tracking record for NEW cartons
+			new_c = frappe.new_doc("Carton QR")
+			new_c.update({
+				"name": carton_no,
 				"item": item_code,
 				"carton_no": carton_no,
-				"batch": batch,
-				"type": log_type,
+				"status": new_status,
 				"qty": qty,
-				"uom": uom,
-				"customer": customer if log_type == "Out" else None,
-				"source_type": source_type if log_type == "In" else None,
-				"supplier": supplier if (log_type == "In" and source_type == "Purchase") else None,
-				"scan_time": frappe.utils.now_datetime()
+				"creation_type": "Scanner"
 			})
-			new_log.insert(ignore_permissions=True)
-			logs_created += 1
-			results.append({
-				"carton_no": carton_no, 
-				"type": log_type, 
-				"item": item_code,
-				"item_name": item_name
-			})
+			new_c.insert(ignore_permissions=True)
+		
+		return {
+			"status": "success",
+			"item": item_code or carton_no,
+			"item_name": item_name or item_code or carton_no,
+			"qty": qty,
+			"log_type": final_type,
+			"current_status": new_status,
+			"carton_no": carton_no
+		}
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error(frappe.get_traceback(), _("Stock Log Action Error"))
+		return {
+			"status": "error",
+			"message": str(e)
+		}
 
-			# 8. Sync Status to Carton and Batch Item
-			new_status = "In Stock" if log_type == "In" else "Dispatched"
-			frappe.db.set_value("Carton QR", carton_no, "status", new_status)
-			
-			if batch:
-				frappe.db.sql("""
-					UPDATE `tabBatch QR Maker Item` 
-					SET status = %s 
-					WHERE parent = %s AND carton_no = %s
-				""", (new_status, batch, carton_no))
-				
-				# Recalculate summary counts for the parent batch
-				scanned = frappe.db.count("Batch QR Maker Item", {"parent": batch, "status": "In Stock"})
-				dispatched = frappe.db.count("Batch QR Maker Item", {"parent": batch, "status": "Dispatched"})
-				
-				# Get total count to check for completion
-				total_cartons = frappe.db.get_value("Batch QR Maker", batch, "no_of_cartons")
-				
-				update_values = {
-					"scanned_cartons": scanned,
-					"dispatched_cartons": dispatched
-				}
-				
-				if dispatched >= total_cartons:
-					update_values["status"] = "Closed"
-				
-				frappe.db.set_value("Batch QR Maker", batch, update_values, update_modified=False)
-
-		except Exception as e:
-			name_to_report = carton_no if 'carton_no' in locals() else str(doc)
-			errors.append(f"Error processing {name_to_report}: {str(e)}")
-
-	frappe.db.commit()
-
-	return {
-		"status": "success" if not errors else "partial_success",
-		"logs_created": logs_created,
-		"errors": errors,
-		"results": results
-	}
-
-@frappe.whitelist()
-def generate_qr_data(item_code, carton_no, qty):
-	# Utility for admin to generate signed QR data
-	settings = frappe.get_single("Stock Log Settings")
-	message = f"{item_code}|{carton_no}|{qty}".encode()
-	key = settings.get_password("hmac_secret").encode()
-	signature = hmac.new(key, message, hashlib.sha256).hexdigest()
-	
-	return {
-		"item": item_code,
-		"carton_no": carton_no,
-		"qty": qty,
-		"signature": signature
-	}
 
 @frappe.whitelist(allow_guest=True)
-def check_carton_statuses(cartons):
-	"""Check if the provided cartons are for In or Out movement."""
-	if isinstance(cartons, str):
-		cartons = json.loads(cartons)
+def log_batch():
+	params = frappe.form_dict
+	cartons = params.get("cartons")
+	if isinstance(cartons, str): cartons = json.loads(cartons)
+	
+	passcode = params.get("passcode")
+	mode = params.get("mode")
+	customer = params.get("customer")
+	delivery_note = params.get("delivery_note")
+	
+	try:
+		frappe.db.begin()
+		last_res = None
+		for scan in (cartons or []):
+			last_res = handle_stock_log(
+				scan_data=scan.get('scan_data') if isinstance(scan, dict) else scan,
+				log_type=mode,
+				manager_token=passcode,
+				customer=customer,
+				delivery_note=delivery_note
+			)
+			# If handle_stock_log returns an error status (instead of throwing)
+			if isinstance(last_res, dict) and last_res.get("status") == "error":
+				frappe.db.rollback()
+				return last_res
 
-	statuses = []
-	for c in cartons:
-		carton_no = c.get("carton_no")
-		log_count = frappe.db.count("Stock Log", filters={"carton_no": carton_no})
+		frappe.db.commit()
+		return {
+			"status": "success", 
+			"message": _("Logged item: {0}").format(last_res.get("item_name") if last_res else ""),
+			"item_name": (last_res.get("item_name") if last_res else None) or (last_res.get("item") if last_res else None),
+			"item": (last_res.get("item") if last_res else None),
+			"qty": last_res.get("qty") if last_res else 0,
+			"log_type": last_res.get("log_type") if last_res else mode,
+			"carton_no": (last_res.get("carton_no") if last_res else None) or (scan.get('scan_data') if isinstance(scan, dict) else scan)
+		}
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error(frappe.get_traceback(), _("Batch Scan Error"))
+		return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
+def revert_stock_log(token, carton_no, delivery_note):
+	"""Deletes the latest "Out" log for a carton/DN to support scanner 'Undo'."""
+	validate_token(token)
+	
+	filters = {"carton_no": (carton_no or "").strip(), "type": "Out"}
+	if delivery_note:
+		filters["delivery_note"] = (delivery_note or "").strip()
 		
-		# If 0 = New (In), If 1 = Previously Logged (Out), If 2+ = Done
-		move_type = "In"
-		if log_count == 1:
-			move_type = "Out"
-		elif log_count >= 2:
-			move_type = "Done"
+	latest_log = frappe.get_all("Stock Log", 
+								 filters=filters, 
+								 order_by="creation desc", 
+								 limit=1)
+	if not latest_log:
+		frappe.throw(_("No matching scan found to undo for carton {0}").format(carton_no))
+	
+	# Delete Log
+	frappe.delete_doc("Stock Log", latest_log[0].name, ignore_permissions=True)
+	
+	# Revert Carton Status back to "In Stock"
+	if frappe.db.exists("Carton QR", carton_no):
+		frappe.db.set_value("Carton QR", carton_no, "status", "In Stock")
+	
+	return {"status": "success", "message": _("Scan undone successfully.")}
+
+
+@frappe.whitelist(allow_guest=True)
+def check_carton_statuses(cartons, token=None):
+	validate_token(token)
+	if isinstance(cartons, str): cartons = json.loads(cartons)
+	statuses = []
+	for c in (cartons or []):
+		scan_data = c.get("carton_no") if isinstance(c, dict) else c
+		
+		# Resolve the true Carton No from potential pipe format
+		carton_no = scan_data
+		if '|' in scan_data:
+			parts = scan_data.split('|')
+			if len(parts) >= 2:
+				carton_no = parts[1]
+		
+		# Fetch record details via get_all for maximum compatibility 
+		res = frappe.get_all("Carton QR", 
+							 filters={"name": carton_no}, 
+							 fields=["item", "qty", "uom", "status"], 
+							 limit_page_length=1)
+		record = res[0] if res else None
+		
+		if not record:
+			# Even if record is missing, return a structure so the frontend knows it's a NEW carton (Inbound)
+			statuses.append({
+				"carton_no": carton_no, 
+				"move_type": "In", 
+				"current_status": "New",
+				"item": "Unknown",
+				"item_name": "New Item/Carton",
+				"qty": 1,
+				"is_new": True
+			})
+			continue
+
+		log_count = frappe.db.count("Stock Log", filters={"carton_no": carton_no})
+		move_type = "In" if log_count == 0 else "Out" if log_count == 1 else "Done"
 		
 		statuses.append({
 			"carton_no": carton_no,
-			"move_type": move_type
+			"move_type": move_type,
+			"item": record.item,
+			"item_name": frappe.db.get_value("Item", record.item, "item_name") or record.item,
+			"qty": record.qty,
+			"uom": record.uom,
+			"current_status": record.status
 		})
-	
 	return statuses
+
+
+@frappe.whitelist(allow_guest=True)
+def get_customers(token=None):
+	validate_token(token)
+	return frappe.get_all("Customer", fields=["name"], order_by="name asc", limit=500)
+
+
+@frappe.whitelist(allow_guest=True)
+def get_suppliers(token=None):
+	validate_token(token)
+	return frappe.get_all("Supplier", fields=["name"], order_by="name asc", limit=500)
+
+
+def update_carton_status_from_log(carton_no, log_type):
+	new_status = "In Stock" if log_type == "In" else "Dispatched"
+	frappe.db.set_value("Carton QR", carton_no, "status", new_status)
+
+
+@frappe.whitelist(allow_guest=True)
+def generate_qr_svg(data, scale=5):
+	"""Generates an SVG QR code for the given data. Used in Jinja templates."""
+	if not data:
+		return ""
+	
+	import pyqrcode
+	from io import BytesIO
+	
+	qr = pyqrcode.create(data)
+	buffer = BytesIO()
+	qr.svg(buffer, scale=scale)
+
+@frappe.whitelist()
+def has_app_permission():
+	"""
+	Permission check for the Warehouse Hub app in Frappe Desk.
+	Standard Desk users are allowed; Guest users are not.
+	"""
+	if frappe.session.user == "Guest":
+		return False
+	return True
