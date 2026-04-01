@@ -17,6 +17,7 @@ def get_columns():
 		{"label": _("Item"), "fieldname": "item", "fieldtype": "Link", "options": "Item", "width": 150},
 		{"label": _("Item Name"), "fieldname": "item_name", "fieldtype": "Data", "width": 180},
 		{"label": _("Batch"), "fieldname": "batch", "fieldtype": "Link", "options": "Batch QR Maker", "width": 140},
+		{"label": _("Cartons"), "fieldname": "cartons", "fieldtype": "Small Text", "width": 220},
 		{"label": _("UOM"), "fieldname": "uom", "fieldtype": "Link", "options": "UOM", "width": 100},
 		{"label": _("Total In (Qty)"), "fieldname": "total_in", "fieldtype": "Float", "width": 110},
 		{"label": _("Total Out (Qty)"), "fieldname": "total_out", "fieldtype": "Float", "width": 110},
@@ -95,6 +96,13 @@ def get_data(filters):
 					ELSE 0
 				END
 			) as carton_count,
+			GROUP_CONCAT(
+				DISTINCT CASE
+					WHEN latest.name IS NOT NULL AND latest.type = 'In' THEN latest.carton_no
+					ELSE NULL
+				END
+				ORDER BY latest.carton_no SEPARATOR ', '
+			) as cartons,
 			MAX(CASE WHEN latest.name IS NOT NULL AND latest.type = 'In' THEN latest.scan_time END) as last_inbound
 		FROM `tabStock Log` sl
 		LEFT JOIN `tabItem` item ON item.name = sl.item
@@ -125,4 +133,4 @@ def get_data(filters):
 	for d in raw_data:
 		d.balance = (d.total_in or 0) - (d.total_out or 0)
 
-	return raw_data
+	return [d for d in raw_data if (d.balance or 0) > 0 and (d.carton_count or 0) > 0]
