@@ -35,7 +35,7 @@
         }
 
         #reader {
-            height: 50vh; background: #000;
+            height: 100%; background: #000;
             overflow: hidden; position: relative;
             flex-shrink: 0; box-shadow: 0 4px 30px rgba(0,0,0,0.5);
             z-index: 5;
@@ -397,7 +397,85 @@
         @keyframes fadeIn { from { opacity: 0; transform: scale(1.1); } to { opacity: 1; transform: scale(1); } }
         
         /* Reader Overlay Controls */
-        #scanner-container { position: relative; height: 50vh; background: #000; overflow: hidden; }
+        #scanner-container {
+            position: sticky;
+            top: 0;
+            order: -1;
+            height: 58vh;
+            min-height: 360px;
+            background: #000;
+            overflow: hidden;
+            z-index: 95;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+        }
+        .scanner-toolbar {
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 0px) + 14px);
+            left: 14px;
+            right: 14px;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            z-index: 12;
+            pointer-events: none;
+        }
+        .scanner-chip {
+            pointer-events: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(13, 17, 23, 0.72);
+            border: 1px solid rgba(255,255,255,0.14);
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 700;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .scanner-chip.warning { color: #facc15; }
+        .scanner-chip button {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font: inherit;
+            padding: 0;
+        }
+        .scanner-frame {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 8;
+        }
+        .scanner-reticle {
+            width: min(72vw, 310px);
+            height: min(72vw, 310px);
+            border-radius: 28px;
+            border: 2px solid rgba(255,255,255,0.85);
+            box-shadow: 0 0 0 200vmax rgba(0,0,0,0.22);
+            position: relative;
+        }
+        .scanner-reticle::before,
+        .scanner-reticle::after {
+            content: "";
+            position: absolute;
+            inset: 14px;
+            border-top: 4px solid rgba(59, 130, 246, 0.95);
+            border-bottom: 4px solid rgba(59, 130, 246, 0.95);
+            border-radius: 18px;
+            opacity: 0.7;
+        }
+        .scanner-reticle::after {
+            inset: 50% 18px auto;
+            height: 2px;
+            border: none;
+            background: rgba(255,255,255,0.7);
+            transform: translateY(-50%);
+        }
         .reader-btn {
             position: absolute; bottom: 20px; width: 50px; height: 50px;
             border-radius: 25px; background: rgba(255,255,255,0.15);
@@ -421,7 +499,7 @@
         }
 
         .status-header {
-            padding: max(env(safe-area-inset-top), 60px) 16px 12px; 
+            padding: 12px 16px 12px;
             background: linear-gradient(to bottom, rgba(13,17,23,1) 50%, rgba(13,17,23,0.8) 80%, transparent);
             border-bottom: 1px solid rgba(255,255,255,0.05);
             display: flex; flex-direction: column; gap: 10px;
@@ -751,6 +829,15 @@
 
     <div id="scanner-container">
         <div id="reader"></div>
+        <div class="scanner-toolbar">
+            <div class="scanner-chip" id="scanner-health">CAMERA READY</div>
+            <div class="scanner-chip warning" id="scanner-restart-chip">
+                <button onclick="restartScanner('manual')">RESTART CAMERA</button>
+            </div>
+        </div>
+        <div class="scanner-frame">
+            <div class="scanner-reticle"></div>
+        </div>
         <!-- Overlays -->
         <button class="reader-btn" onclick="promptManualEntry()" id="btn-manual" style="left: 20px;">
             <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -943,27 +1030,129 @@
         }
     }
 
-    function initScanner() {
-        html5QrCode = new Html5Qrcode("reader");
-        const config = { fps: 15, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
-        html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
-            .then(() => {
-                // Check if torch is supported
+    let isScanningBlocked = false;
+    let isTorchOn = false;
+    let scannerState = 'idle';
+    let scannerRecoveryTimer = null;
+    let scannerWatchdog = null;
+    let lastScanAt = 0;
+
+    function setScannerHealth(label, tone = '') {
+        const el = document.getElementById('scanner-health');
+        if (!el) return;
+        el.textContent = label;
+        el.className = `scanner-chip${tone ? ` ${tone}` : ''}`;
+    }
+
+    function getScannerConfig() {
+        const viewportBase = Math.min(window.innerWidth || 320, window.innerHeight || 640);
+        const boxSize = Math.max(220, Math.min(320, Math.floor(viewportBase * 0.56)));
+        return {
+            fps: 20,
+            qrbox: { width: boxSize, height: boxSize },
+            aspectRatio: 1.0,
+            rememberLastUsedCamera: true
+        };
+    }
+
+    function clearScannerRecoveryTimer() {
+        if (scannerRecoveryTimer) {
+            clearTimeout(scannerRecoveryTimer);
+            scannerRecoveryTimer = null;
+        }
+    }
+
+    function ensureScannerWatchdog() {
+        if (scannerWatchdog) return;
+        scannerWatchdog = setInterval(() => {
+            if (scannerState !== 'running' || document.hidden) return;
+            const video = document.querySelector('#reader video');
+            if (!video) return;
+            const isFrozen = video.readyState < 2 || video.paused || video.ended || !video.videoWidth;
+            if (isFrozen) {
+                console.warn("Scanner watchdog restarting frozen camera feed");
+                restartScanner('recover');
+                return;
+            }
+            if (Date.now() - lastScanAt > 12000) {
+                setScannerHealth('ALIGN QR IN FRAME');
+            }
+        }, 4000);
+    }
+
+    async function stopScanner() {
+        clearScannerRecoveryTimer();
+        if (!html5QrCode || scannerState === 'idle') {
+            scannerState = 'idle';
+            return;
+        }
+        const currentScanner = html5QrCode;
+        scannerState = 'stopping';
+        try {
+            await currentScanner.stop();
+        } catch (err) {
+            console.warn("Scanner stop warning:", err);
+        }
+        try {
+            await currentScanner.clear();
+        } catch (err) {
+            console.warn("Scanner clear warning:", err);
+        }
+        if (html5QrCode === currentScanner) {
+            html5QrCode = null;
+        }
+        isTorchOn = false;
+        document.getElementById('btn-torch').style.display = 'none';
+        setScannerHealth('CAMERA PAUSED', 'warning');
+        scannerState = 'idle';
+    }
+
+    function scheduleScannerRecovery(reason = 'recover', delay = 900) {
+        if (!localStorage.getItem('scanner_setup_done') || document.hidden) return;
+        clearScannerRecoveryTimer();
+        setScannerHealth(reason === 'manual' ? 'RESTARTING CAMERA' : 'RECOVERING CAMERA', 'warning');
+        scannerRecoveryTimer = setTimeout(() => {
+            startScanner();
+        }, delay);
+    }
+
+    async function startScanner() {
+        if (scannerState === 'starting' || scannerState === 'running') return;
+        clearScannerRecoveryTimer();
+        scannerState = 'starting';
+        setScannerHealth('STARTING CAMERA', 'warning');
+        if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode("reader");
+        }
+        try {
+            await html5QrCode.start({ facingMode: "environment" }, getScannerConfig(), onScanSuccess);
+            scannerState = 'running';
+            ensureScannerWatchdog();
+            setScannerHealth('SCAN NOW');
+            try {
                 const capabilities = html5QrCode.getRunningTrackCapabilities();
                 if (capabilities.torch) {
                     document.getElementById('btn-torch').style.display = 'flex';
                 }
-            })
-            .catch(err => {
-                console.error("Scanner init error:", err);
-            });
+            } catch (capErr) {
+                console.warn("Torch capability warning:", capErr);
+            }
+        } catch (err) {
+            console.error("Scanner init error:", err);
+            scannerState = 'idle';
+            setScannerHealth('CAMERA RETRYING', 'warning');
+            scheduleScannerRecovery('recover', 1200);
+        }
     }
 
-    let isScanningBlocked = false;
-    let isTorchOn = false;
+    async function restartScanner(reason = 'manual') {
+        setScannerHealth(reason === 'manual' ? 'RESTARTING CAMERA' : 'RECOVERING CAMERA', 'warning');
+        await stopScanner();
+        scheduleScannerRecovery(reason, 250);
+    }
 
     function toggleTorch() {
-        if (!html5QrCode) return;
+        if (!html5QrCode || scannerState !== 'running') return;
         isTorchOn = !isTorchOn;
         html5QrCode.applyVideoConstraints({ advanced: [{ torch: isTorchOn }] })
             .catch(err => {
@@ -974,6 +1163,8 @@
     }
     async function onScanSuccess(decodedText) {
         if (isScanningBlocked) return;
+        lastScanAt = Date.now();
+        setScannerHealth('SCANNING ACTIVE');
         isScanningBlocked = true;
         setTimeout(() => { isScanningBlocked = false; }, 1500); // 1.5s industrial debounce
         
@@ -1723,13 +1914,13 @@
         renderTruckSummary();
     }
 
-    window.onload = () => {
+    function hydrateSessionFromStorage() {
         // Load data from session
         history = JSON.parse(localStorage.getItem('scanner_history') || '[]');
         renderSessionBadges();
         renderHistory();
         fetchMetadata();
-    };
+    }
 
     function setMapping(type, id, name, resetMappingCount = true) {
         activeCustomer = id;
@@ -2119,14 +2310,15 @@
         document.getElementById('wizard-overlay').classList.add('hide');
         setTimeout(() => document.getElementById('wizard-overlay').style.display = 'none', 500);
         fetchMetadata();
-        initScanner();
+        startScanner();
         setTab(activeTab);
         updateStockMode();
     }
 
     function resetWizard() { localStorage.clear(); window.location.reload(); }
 
-    window.onload = () => {
+    function initializeScannerApp() {
+        hydrateSessionFromStorage();
         if (!localStorage.getItem('scanner_setup_done')) {
             document.getElementById('wizard-overlay').style.display = 'flex';
         } else {
@@ -2157,12 +2349,38 @@
             document.getElementById('global-passcode').value = localStorage.getItem('scanner_passcode') || '';
             applyInboundSourceSelection(activeInboundSource);
             updateAutoConfirm(autoConfirmEnabled);
-            initScanner();
+            startScanner();
             updateStockMode();
             renderSessionBadges();
             setTab(activeTab);
         }
-    };
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            stopScanner();
+        } else if (localStorage.getItem('scanner_setup_done')) {
+            scheduleScannerRecovery('visibility', 350);
+        }
+    });
+
+    window.addEventListener('focus', () => {
+        if (localStorage.getItem('scanner_setup_done') && scannerState !== 'running') {
+            scheduleScannerRecovery('focus', 250);
+        }
+    });
+
+    window.addEventListener('pageshow', () => {
+        if (localStorage.getItem('scanner_setup_done') && scannerState !== 'running') {
+            scheduleScannerRecovery('pageshow', 250);
+        }
+    });
+
+    window.addEventListener('beforeunload', () => {
+        stopScanner();
+    });
+
+    window.addEventListener('load', initializeScannerApp);
 
     // Intelligent Workflow Logic
     let currentWorkflowScan = null;
