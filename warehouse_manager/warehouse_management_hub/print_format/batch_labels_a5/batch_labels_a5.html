@@ -12,8 +12,8 @@
                     <tr>
                         <td class="qr-cell">
                             <div class="qr-box">
-                                {{ generate_qr_svg(carton.signed_data or carton.name, 18)
-                                    | replace('<svg', '<svg preserveAspectRatio="xMidYMid meet" style="display:block;margin:0 auto;"')
+                                {{ generate_qr_svg(carton.signed_data or carton.name, 12)
+                                    | replace('<svg', '<svg width="78mm" height="78mm" preserveAspectRatio="xMidYMid meet" style="display:block;margin:0 auto;"')
                                     | safe }}
                             </div>
                         </td>
@@ -86,13 +86,10 @@ body {
 }
 
 .qr-box {
-    width: 86mm;
-    height: 86mm;
+    width: 78mm;
+    height: 78mm;
     margin: 0 auto;
-    padding: 4mm;
-    box-sizing: border-box;
     background: #ffffff;
-    overflow: hidden;
     line-height: 0;
 }
 
