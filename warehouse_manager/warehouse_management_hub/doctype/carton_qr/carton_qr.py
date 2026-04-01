@@ -40,3 +40,9 @@ class CartonQR(Document):
 			"uom": self.uom,
 			"signature": signature
 		}
+
+	@property
+	def qr_svg(self):
+		"""Returns the QR SVG string for this carton. Useful for Jinja templates."""
+		from warehouse_manager.api import generate_qr_svg
+		return generate_qr_svg(self.signed_data or self.name, scale=5)
