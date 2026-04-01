@@ -726,6 +726,7 @@ def generate_qr_svg(data, scale=5):
 	qr = pyqrcode.create(data)
 	buffer = BytesIO()
 	qr.svg(buffer, scale=scale)
+	return buffer.getvalue().decode()
 
 @frappe.whitelist()
 def has_app_permission():
