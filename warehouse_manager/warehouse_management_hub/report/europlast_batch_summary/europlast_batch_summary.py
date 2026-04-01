@@ -6,7 +6,9 @@ def execute(filters=None):
 	filters = filters or {}
 	columns = get_columns()
 	data = get_data(filters)
-	return columns, data
+	chart = get_chart(data)
+	report_summary = get_report_summary(data)
+	return columns, data, None, chart, report_summary
 
 def get_columns():
 	return [
@@ -89,3 +91,32 @@ def get_data(filters):
 		d.aging_days = date_diff(today, d.last_movement) if d.last_movement else 0
 	
 	return data
+
+def get_chart(data):
+	if not data:
+		return None
+
+	top_batches = sorted(data, key=lambda x: x.get("balance", 0), reverse=True)[:5]
+	return {
+		"data": {
+			"labels": [row.get("batch") or _("No Batch") for row in top_batches],
+			"datasets": [
+				{"name": _("In Stock Qty"), "values": [row.get("balance") or 0 for row in top_batches]},
+				{"name": _("Cartons"), "values": [row.get("carton_count") or 0 for row in top_batches]},
+			],
+		},
+		"type": "bar",
+		"colors": ["#6366f1", "#14b8a6"],
+	}
+
+def get_report_summary(data):
+	if not data:
+		return []
+
+	total_balance = sum(row.get("balance") or 0 for row in data)
+	total_cartons = sum(row.get("carton_count") or 0 for row in data)
+	return [
+		{"value": len(data), "indicator": "Blue", "label": _("Batches"), "datatype": "Int"},
+		{"value": total_balance, "indicator": "Green", "label": _("In Stock Qty"), "datatype": "Float"},
+		{"value": total_cartons, "indicator": "Orange", "label": _("Cartons in Stock"), "datatype": "Int"},
+	]

@@ -5,7 +5,9 @@ def execute(filters=None):
 	filters = filters or {}
 	columns = get_columns()
 	data = get_data(filters)
-	return columns, data
+	chart = get_chart(data)
+	report_summary = get_report_summary(data)
+	return columns, data, None, chart, report_summary
 
 def get_columns():
 	return [
@@ -84,3 +86,39 @@ def get_data(filters):
 	)
 	
 	return data
+
+def get_chart(data):
+	if not data:
+		return None
+
+	day_map = {}
+	for row in reversed(data):
+		date_key = str(row.get("date"))
+		entry = day_map.setdefault(date_key, {"In": 0, "Out": 0})
+		entry[row.get("type")] = entry.get(row.get("type"), 0) + 1
+
+	labels = list(day_map.keys())[-7:]
+	return {
+		"data": {
+			"labels": labels,
+			"datasets": [
+				{"name": _("Inbound"), "values": [day_map[d].get("In", 0) for d in labels]},
+				{"name": _("Outbound"), "values": [day_map[d].get("Out", 0) for d in labels]},
+			],
+		},
+		"type": "bar",
+		"colors": ["#10b981", "#3b82f6"],
+	}
+
+def get_report_summary(data):
+	if not data:
+		return []
+
+	inbound = sum(1 for row in data if row.get("type") == "In")
+	outbound = sum(1 for row in data if row.get("type") == "Out")
+	total_qty = sum(row.get("qty") or 0 for row in data)
+	return [
+		{"value": inbound, "indicator": "Green", "label": _("Inbound Scans"), "datatype": "Int"},
+		{"value": outbound, "indicator": "Blue", "label": _("Outbound Scans"), "datatype": "Int"},
+		{"value": total_qty, "indicator": "Orange", "label": _("Movement Qty"), "datatype": "Float"},
+	]

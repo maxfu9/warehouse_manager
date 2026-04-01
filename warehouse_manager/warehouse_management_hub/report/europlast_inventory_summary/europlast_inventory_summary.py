@@ -35,16 +35,23 @@ def get_chart(data):
 
 	return {
 		"data": {
-			"labels": [d.get("item") for d in top_items],
+			"labels": [
+				f"{d.get('item')} ({d.get('carton_count', 0)} cartons)"
+				for d in top_items
+			],
 			"datasets": [
 				{
 					"name": _("Stock Balance"),
 					"values": [d.get("balance") for d in top_items]
+				},
+				{
+					"name": _("Cartons in Stock"),
+					"values": [d.get("carton_count") for d in top_items]
 				}
 			]
 		},
 		"type": "bar",
-		"colors": ["#48bb78"]
+		"colors": ["#48bb78", "#3b82f6"]
 	}
 
 def get_report_summary(data):

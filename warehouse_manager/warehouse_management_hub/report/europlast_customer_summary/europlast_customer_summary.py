@@ -5,7 +5,9 @@ def execute(filters=None):
 	filters = filters or {}
 	columns = get_columns()
 	data = get_data(filters)
-	return columns, data
+	chart = get_chart(data)
+	report_summary = get_report_summary(data)
+	return columns, data, None, chart, report_summary
 
 def get_columns():
 	return [
@@ -65,3 +67,32 @@ def get_data(filters):
 	)
 	
 	return data
+
+def get_chart(data):
+	if not data:
+		return None
+
+	top_customers = sorted(data, key=lambda x: x.get("total_qty", 0), reverse=True)[:5]
+	return {
+		"data": {
+			"labels": [row.get("customer") or _("Unknown") for row in top_customers],
+			"datasets": [
+				{"name": _("Shipped Qty"), "values": [row.get("total_qty") or 0 for row in top_customers]},
+				{"name": _("Cartons"), "values": [row.get("carton_count") or 0 for row in top_customers]},
+			],
+		},
+		"type": "bar",
+		"colors": ["#f59e0b", "#0ea5e9"],
+	}
+
+def get_report_summary(data):
+	if not data:
+		return []
+
+	total_qty = sum(row.get("total_qty") or 0 for row in data)
+	total_cartons = sum(row.get("carton_count") or 0 for row in data)
+	return [
+		{"value": len({row.get('customer') for row in data if row.get('customer')}), "indicator": "Blue", "label": _("Customers"), "datatype": "Int"},
+		{"value": total_qty, "indicator": "Orange", "label": _("Shipped Qty"), "datatype": "Float"},
+		{"value": total_cartons, "indicator": "Green", "label": _("Shipped Cartons"), "datatype": "Int"},
+	]
