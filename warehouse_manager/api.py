@@ -738,6 +738,47 @@ def has_app_permission():
 		return False
 	return True
 
+
+@frappe.whitelist()
+def get_delivery_note_cartons(delivery_note):
+	"""Return cartons dispatched against a Delivery Note with Carton QR linkage."""
+	delivery_note = (delivery_note or "").strip()
+	if not delivery_note:
+		frappe.throw(_("Delivery Note is required"))
+
+	if not frappe.db.exists("Delivery Note", delivery_note):
+		frappe.throw(_("Delivery Note {0} not found").format(delivery_note))
+
+	logs = frappe.db.sql(
+		"""
+		SELECT
+			sl.carton_no,
+			MAX(sl.item) AS item,
+			MAX(item.item_name) AS item_name,
+			MAX(sl.batch) AS batch,
+			MAX(sl.qty) AS qty,
+			MAX(carton_qr.name) AS carton_qr_name
+		FROM `tabStock Log` sl
+		LEFT JOIN `tabItem` item
+			ON item.name = sl.item
+		LEFT JOIN `tabCarton QR` carton_qr
+			ON carton_qr.name = sl.carton_no
+		WHERE sl.delivery_note = %(delivery_note)s
+			AND sl.type = 'Out'
+			AND IFNULL(sl.carton_no, '') != ''
+		GROUP BY sl.carton_no
+		ORDER BY sl.carton_no ASC
+		""",
+		{"delivery_note": delivery_note},
+		as_dict=True,
+	)
+
+	return {
+		"delivery_note": delivery_note,
+		"count": len(logs),
+		"cartons": logs,
+	}
+
 def update_batch_maker_status(batch_id, carton_no, status):
 	"""
 	Propagates status updates from the scanner to the Batch QR Maker dashboard.
