@@ -662,12 +662,12 @@
         </div>
         <div class="setting-box" id="supplier-container" style="display: none;">
             <span class="setting-label">Supplier</span>
-            <input type="text" id="supplier-input" list="supplier-list" placeholder="Search Supplier..." class="wizard-input" style="padding: 8px; margin:0;" autocomplete="off" oninput="localStorage.setItem('active_supplier', this.value)">
+            <input type="text" id="supplier-input" list="supplier-list" placeholder="Search Supplier..." class="wizard-input" style="padding: 8px; margin:0;" autocomplete="off" oninput="rememberSupplierInput(this.value)">
             <datalist id="supplier-list"></datalist>
         </div>
         <div class="setting-box" id="customer-container" style="display: none;">
             <span class="setting-label">Customer</span>
-            <input type="text" id="customer-input" list="customer-list" placeholder="Search Customer..." class="wizard-input" style="padding: 8px; margin:0;" autocomplete="off" oninput="setMapping('Customer', this.value, this.value, true)">
+            <input type="text" id="customer-input" list="customer-list" placeholder="Search Customer..." class="wizard-input" style="padding: 8px; margin:0;" autocomplete="off" oninput="rememberCustomerInput(this.value)">
             <datalist id="customer-list"></datalist>
         </div>
         <datalist id="item-list"></datalist>
@@ -712,6 +712,7 @@
     let mappingCount = parseInt(localStorage.getItem('scanner_mapping_count') || '0');
     let activeCustomer = localStorage.getItem('active_customer_id') || '';
     let activeCustomerName = localStorage.getItem('active_customer_name') || '';
+    let activeInboundSource = JSON.parse(localStorage.getItem('active_inbound_source') || 'null');
 
     let sessionItems = JSON.parse(localStorage.getItem('scanner_session_items') || '{}');
     let history = [];
@@ -854,19 +855,15 @@
             } else if (status.move_type === 'In') {
                 if (activeTab === 'inventory' && stockMode === 'In') {
                     // AUTO-LOG logic if session source is already set
-                    const sourceType = document.getElementById('source-type').value;
-                    const supplier = document.getElementById('supplier-input').value;
-                    
-                    // Match with HTML option values: "Internal Production" and "Purchase"
-                    const isProduction = (sourceType === 'Internal Production' || sourceType === 'Production');
-                    const isPurchaseWithSupplier = (sourceType === 'Purchase' && supplier);
+                    const inboundSelection = getInboundSourceSelection();
 
-                    if (isProduction || isPurchaseWithSupplier) {
+                    if (inboundSelection) {
                         // We have enough info to auto-log
                         const params = {
                             mode: 'In',
-                            source_type: (sourceType === 'Internal Production' ? 'Production' : sourceType),
-                            supplier: sourceType === 'Purchase' ? supplier : null
+                            source_type: inboundSelection.source_type,
+                            supplier: inboundSelection.supplier || null,
+                            customer: inboundSelection.customer || null
                         };
                         handleStockLog(decodedText, (res) => {
                             updateSessionStats(res);
@@ -1399,6 +1396,7 @@
         mappingCount = 0;
         sessionItems = {};
         history = [];
+        clearInboundSource();
         
         localStorage.removeItem('scanner_truck_total');
         localStorage.removeItem('scanner_mapping_count');
@@ -1597,6 +1595,7 @@
             truckTotal = 0;
             mappingCount = 0;
             sessionItems = {};
+            clearInboundSource();
             localStorage.removeItem('scanner_truck_total');
             localStorage.removeItem('scanner_mapping_count');
             localStorage.removeItem('scanner_session_items');
@@ -1756,6 +1755,15 @@
 
         suppCont.style.display = (type === 'Purchase') ? 'block' : 'none';
         custCont.style.display = (type === 'Return Stock') ? 'block' : 'none';
+
+        if (type === 'Internal Production' || type === 'Production') {
+            saveInboundSource({
+                source_type: 'Production',
+                ui_source_type: 'Internal Production',
+                supplier: null,
+                customer: null
+            });
+        }
     }
 
     async function fetchMetadata() {
@@ -1852,6 +1860,7 @@
             const modeEl = document.getElementById('stock-mode');
             if (modeEl) modeEl.value = stockMode;
             document.getElementById('global-passcode').value = localStorage.getItem('scanner_passcode') || '';
+            applyInboundSourceSelection(activeInboundSource);
             updateAutoConfirm(autoConfirmEnabled);
             initScanner();
             updateStockMode();
@@ -1863,6 +1872,90 @@
     // Intelligent Workflow Logic
     let currentWorkflowScan = null;
     let selectedBranch = localStorage.getItem('last_inbound_source') || 'Production';
+
+    function saveInboundSource(source) {
+        activeInboundSource = source;
+        localStorage.setItem('active_inbound_source', JSON.stringify(source));
+    }
+
+    function clearInboundSource() {
+        activeInboundSource = null;
+        localStorage.removeItem('active_inbound_source');
+    }
+
+    function getInboundSourceSelection() {
+        const sourceType = document.getElementById('source-type').value;
+        const supplier = document.getElementById('supplier-input').value;
+        const customer = document.getElementById('customer-input').value;
+
+        if (sourceType === 'Internal Production' || sourceType === 'Production') {
+            return {
+                source_type: 'Production',
+                ui_source_type: 'Internal Production',
+                supplier: null,
+                customer: null
+            };
+        }
+
+        if (sourceType === 'Purchase' && supplier) {
+            return {
+                source_type: 'Purchase',
+                ui_source_type: 'Purchase',
+                supplier,
+                customer: null
+            };
+        }
+
+        if (sourceType === 'Return Stock' && customer) {
+            return {
+                source_type: 'Return Stock',
+                ui_source_type: 'Return Stock',
+                supplier: null,
+                customer
+            };
+        }
+
+        return activeInboundSource;
+    }
+
+    function applyInboundSourceSelection(selection) {
+        if (!selection) return;
+
+        const sourceEl = document.getElementById('source-type');
+        const suppEl = document.getElementById('supplier-input');
+        const custEl = document.getElementById('customer-input');
+
+        if (sourceEl) sourceEl.value = selection.ui_source_type || selection.source_type || 'Internal Production';
+        if (suppEl) suppEl.value = selection.supplier || '';
+        if (custEl) custEl.value = selection.customer || '';
+
+        updateSourceType();
+    }
+
+    function rememberSupplierInput(value) {
+        const trimmed = (value || '').trim();
+        if (trimmed) {
+            saveInboundSource({
+                source_type: 'Purchase',
+                ui_source_type: 'Purchase',
+                supplier: trimmed,
+                customer: null
+            });
+        }
+    }
+
+    function rememberCustomerInput(value) {
+        const trimmed = (value || '').trim();
+        setMapping('Customer', value, value, true);
+        if (stockMode === 'In' && document.getElementById('source-type').value === 'Return Stock' && trimmed) {
+            saveInboundSource({
+                source_type: 'Return Stock',
+                ui_source_type: 'Return Stock',
+                supplier: null,
+                customer: trimmed
+            });
+        }
+    }
 
     function showWorkflow(type, data) {
         currentWorkflowScan = data;
@@ -2033,23 +2126,17 @@
                 // STICKY SELECTION: Set global mode so next scans are auto-logged
                 if (logType === 'In') {
                     const modeEl = document.getElementById('stock-mode');
-                    const sourceEl = document.getElementById('source-type');
                     if (modeEl) modeEl.value = 'In';
                     const finalSource = branchType === 'Production' ? 'Internal Production' : 
                                       branchType === 'Purchase' ? 'Purchase' : 'Return Stock';
-                    if (sourceEl) {
-                        sourceEl.style.display = 'block';
-                        sourceEl.value = finalSource;
-                    }
-                    
-                    if (branchType === 'Purchase' && actorName) {
-                        const suppEl = document.getElementById('supplier-input');
-                        if (suppEl) suppEl.value = actorName;
-                    }
-                    if (branchType === 'Return' && actorName) {
-                        const custEl = document.getElementById('customer-input');
-                        if (custEl) custEl.value = actorName;
-                    }
+                    const inboundSelection = {
+                        source_type: branchType === 'Production' ? 'Production' : finalSource,
+                        ui_source_type: finalSource,
+                        supplier: branchType === 'Purchase' ? actorName : null,
+                        customer: branchType === 'Return' ? actorName : null
+                    };
+                    saveInboundSource(inboundSelection);
+                    applyInboundSourceSelection(inboundSelection);
                     updateStockMode(); 
                 } else if (logType === 'Out') {
                     const modeEl = document.getElementById('stock-mode');
