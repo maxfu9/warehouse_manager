@@ -728,6 +728,21 @@ def generate_qr_svg(data, scale=5):
 	qr.svg(buffer, scale=scale)
 	return buffer.getvalue().decode()
 
+
+def generate_qr_png_data_uri(data, scale=8):
+	"""Generates a PNG QR code data URI for print-safe rendering."""
+	if not data:
+		return ""
+
+	import pyqrcode
+	from io import BytesIO
+
+	qr = pyqrcode.create(data, error="M")
+	buffer = BytesIO()
+	qr.png(buffer, scale=scale, quiet_zone=4)
+	encoded = base64.b64encode(buffer.getvalue()).decode()
+	return f"data:image/png;base64,{encoded}"
+
 @frappe.whitelist()
 def has_app_permission():
 	"""

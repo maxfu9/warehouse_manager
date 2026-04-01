@@ -12,9 +12,11 @@
                     <tr>
                         <td class="qr-cell">
                             <div class="qr-box">
-                                {{ generate_qr_svg(carton.signed_data or carton.name, 12)
-                                    | replace('<svg', '<svg width="78mm" height="78mm" preserveAspectRatio="xMidYMid meet" style="display:block;margin:0 auto;"')
-                                    | safe }}
+                                <img
+                                    src="{{ generate_qr_png_data_uri(carton.signed_data or carton.name, 10) }}"
+                                    alt="{{ carton.carton_no }}"
+                                    class="qr-image"
+                                >
                             </div>
                         </td>
                     </tr>
@@ -91,6 +93,13 @@ body {
     margin: 0 auto;
     background: #ffffff;
     line-height: 0;
+}
+
+.qr-image {
+    width: 78mm;
+    height: 78mm;
+    display: block;
+    margin: 0 auto;
 }
 
 .product-block {

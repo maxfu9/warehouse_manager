@@ -96,7 +96,8 @@ website_route_rules = [
 jinja = {
 	"methods": [
 		"warehouse_manager.utils",
-		"warehouse_manager.api.generate_qr_svg"
+		"warehouse_manager.api.generate_qr_svg",
+		"warehouse_manager.api.generate_qr_png_data_uri"
 	],
 }
 
