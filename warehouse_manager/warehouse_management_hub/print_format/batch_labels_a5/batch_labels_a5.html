@@ -9,7 +9,7 @@
 
                 <div class="qr-box">
                     <div class="qr-wrap">
-                        {{ carton.qr_svg | replace('<svg', '<svg preserveAspectRatio="xMidYMid meet"') | safe }}
+                        {{ carton.qr_svg | replace('<svg', '<svg preserveAspectRatio="xMidYMid meet" style="width: 118mm; height: 118mm; display: block; margin: 0 auto;"') | safe }}
                     </div>
                 </div>
 
@@ -48,17 +48,13 @@ body {
     box-sizing: border-box;
     padding: 10mm 12mm;
     background: #ffffff;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
     page-break-inside: avoid;
     border-bottom: 1px solid #d4d4d4;
+    text-align: center;
 }
 
 .label-id {
     width: 100%;
-    text-align: center;
     font-size: 24pt;
     font-weight: 900;
     line-height: 1;
@@ -68,34 +64,34 @@ body {
 }
 
 .qr-box {
-    width: 102mm;
-    height: 102mm;
-    margin-top: 2mm;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 118mm;
+    height: 118mm;
+    margin-top: 1mm;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
 }
 
 .qr-wrap {
     width: 100%;
     height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: table-cell;
+    vertical-align: middle;
     line-height: 0;
     overflow: hidden;
+    text-align: center;
 }
 
 .qr-wrap svg {
-    width: 100% !important;
-    height: 100% !important;
+    width: 118mm !important;
+    height: 118mm !important;
     display: block;
-    margin: auto !important;
+    margin: 0 auto !important;
 }
 
 .product-block {
     width: 100%;
-    margin-top: 2mm;
+    margin-top: 1mm;
     text-align: center;
 }
 
