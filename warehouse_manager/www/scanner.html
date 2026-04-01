@@ -406,6 +406,19 @@
             z-index: 10; transition: all 0.3s;
         }
         .reader-btn:active { transform: scale(0.9); background: var(--primary); }
+        #lot-close-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(13, 17, 23, 0.96);
+            z-index: 2500;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 28px;
+            text-align: center;
+            backdrop-filter: blur(20px);
+        }
 
         .status-header {
             padding: max(env(safe-area-inset-top), 60px) 16px 12px; 
@@ -416,6 +429,64 @@
         }
         .header-top { display: flex; justify-content: space-between; align-items: center; }
         .header-bottom { display: none; padding-top: 5px; border-top: 1px solid rgba(255,255,255,0.05); }
+        .inbound-context {
+            display: none;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            gap: 10px;
+            flex-direction: column;
+        }
+        .inbound-context.active { display: flex; }
+        .context-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .context-cell {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 10px;
+        }
+        .context-label {
+            font-size: 0.65rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 4px;
+        }
+        .context-value {
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: white;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .context-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .context-btn {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 10px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .context-btn.primary {
+            background: var(--primary);
+            color: white;
+        }
+        .context-btn.ghost {
+            background: rgba(255,255,255,0.05);
+            color: #cbd5e1;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
         
         .mode-indicator {
             background: var(--primary); color: white; padding: 4px 10px;
@@ -454,6 +525,17 @@
     <button class="wizard-btn" style="background: white; color: var(--success); width: 250px; margin-top: 20px;" onclick="resetDeliveryScanner()">
         START NEXT DELIVERY
     </button>
+</div>
+
+<div id="lot-close-overlay">
+    <div class="completion-icon" style="background: var(--primary); color: white;">📦</div>
+    <div class="wizard-title" style="color: white; font-size: 2rem; margin-bottom: 10px;">LOT COMPLETE</div>
+    <div class="wizard-desc" id="lot-close-summary" style="color: rgba(255,255,255,0.9); margin-bottom: 20px;">0 cartons scanned</div>
+    <div id="lot-close-details" style="width: 100%; max-width: 420px; max-height: 240px; overflow-y: auto; background: rgba(255,255,255,0.05); border-radius: 14px; padding: 16px; margin-bottom: 20px; text-align: left;"></div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 420px;">
+        <button class="wizard-btn" style="background: rgba(255,255,255,0.08); color: white; box-shadow: none; margin-top: 0;" onclick="hideLotCloseOverlay()">CONTINUE LOT</button>
+        <button class="wizard-btn" style="margin-top: 0;" onclick="finalizeCloseInboundLot()">START NEW LOT</button>
+    </div>
 </div>
 
 <!-- Floating Scan Feedback Card -->
@@ -528,6 +610,30 @@
                 <span id="entity-icon">📍</span>
                 <span id="entity-name">SELECT CUSTOMER</span>
                 <span class="count-sub-badge" id="entity-count">0</span>
+            </div>
+        </div>
+        <div class="inbound-context" id="inbound-context-panel">
+            <div class="context-grid">
+                <div class="context-cell">
+                    <div class="context-label">Mode</div>
+                    <div class="context-value" id="ctx-mode">Inbound</div>
+                </div>
+                <div class="context-cell">
+                    <div class="context-label">Lot Count</div>
+                    <div class="context-value" id="ctx-lot-count">0 cartons</div>
+                </div>
+                <div class="context-cell">
+                    <div class="context-label">Source</div>
+                    <div class="context-value" id="ctx-source">Not set</div>
+                </div>
+                <div class="context-cell">
+                    <div class="context-label">Partner</div>
+                    <div class="context-value" id="ctx-partner">Not required</div>
+                </div>
+            </div>
+            <div class="context-actions">
+                <button class="context-btn ghost" onclick="continueCurrentLot()">CONTINUE LOT</button>
+                <button class="context-btn primary" onclick="confirmCloseInboundLot()">START NEW LOT</button>
             </div>
         </div>
     </div>
@@ -654,7 +760,7 @@
         </div>
         <div class="setting-box" id="source-type-container" style="display: none;">
             <span class="setting-label">Source Type</span>
-            <select id="source-type" onchange="updateSourceType()">
+            <select id="source-type" onchange="handleSourceTypeChange()">
                 <option value="Internal Production">Internal Production</option>
                 <option value="Purchase">Purchase</option>
                 <option value="Return Stock">Return Stock</option>
@@ -669,6 +775,13 @@
             <span class="setting-label">Customer</span>
             <input type="text" id="customer-input" list="customer-list" placeholder="Search Customer..." class="wizard-input" style="padding: 8px; margin:0;" autocomplete="off" oninput="rememberCustomerInput(this.value)">
             <datalist id="customer-list"></datalist>
+        </div>
+        <div class="setting-box" id="inbound-lot-actions" style="display: none;">
+            <span class="setting-label">Lot Actions</span>
+            <div class="context-actions">
+                <button class="context-btn ghost" onclick="continueCurrentLot()">Continue Current Lot</button>
+                <button class="context-btn primary" onclick="confirmCloseInboundLot()">Start New Lot</button>
+            </div>
         </div>
         <datalist id="item-list"></datalist>
         <div class="setting-row">
@@ -840,6 +953,14 @@
                 return;
             }
 
+            const inboundGuard = getInboundGuardMessage();
+            if (inboundGuard) {
+                showStatus("FIX INBOUND", inboundGuard, 'warning');
+                openSettings();
+                playSound('error'); vibrate('error');
+                return;
+            }
+
             if (stockMode === 'In' && status.current_status === 'In Stock') {
                 showStatus("ALREADY IN STOCK", `${status.item_name || status.item || status.carton_no} is already in stock`, 'error');
                 playSound('error'); vibrate('error');
@@ -879,6 +1000,7 @@
                         };
                         handleStockLog(decodedText, (res) => {
                             updateSessionStats(res);
+                            showInboundScanCard(res.item_name, res.carton_no, res.qty, res.uom);
                             playSound('success'); vibrate('success');
                             showStatus("SUCCESS", `STOCK IN: ${res.item_name}`, 'success');
                         }, params);
@@ -1113,6 +1235,7 @@
         const nameEl = document.getElementById('fb-name');
         const progEl = document.getElementById('fb-progress');
         const statusEl = document.getElementById('fb-status');
+        const undoBtn = document.getElementById('fb-undo');
         
         if (!card) return;
         
@@ -1121,6 +1244,7 @@
         progEl.innerText = `${current} / ${target}`;
         statusEl.innerText = (current >= target) ? 'ITEM COMPLETED' : 'ITEM MATCHED';
         statusEl.style.color = (current >= target) ? 'var(--success)' : '#3b82f6';
+        if (undoBtn) undoBtn.style.display = 'block';
         
         // Save for Undo
         lastScanData = { 
@@ -1572,6 +1696,7 @@
                 entityRow.style.display = 'none';
             }
         }
+        renderInboundContext();
         renderTruckSummary();
     }
 
@@ -1709,6 +1834,11 @@
         p.style.display = p.style.display === 'block' ? 'none' : 'block';
     }
 
+    function openSettings() {
+        const p = document.getElementById('settings-panel');
+        if (p) p.style.display = 'block';
+    }
+
     function setTab(tab) {
         activeTab = tab;
         localStorage.setItem('scanner_tab', tab);
@@ -1739,15 +1869,18 @@
         const sourceCont = document.getElementById('source-type-container');
         const suppCont = document.getElementById('supplier-container');
         const custCont = document.getElementById('customer-container');
+        const lotActions = document.getElementById('inbound-lot-actions');
 
         if (stockMode === 'Delivery') {
             if (dnBadge) dnBadge.style.display = 'flex';
             if (sourceCont) sourceCont.style.display = 'none';
             if (suppCont) suppCont.style.display = 'none';
             if (custCont) custCont.style.display = 'none';
+            if (lotActions) lotActions.style.display = 'none';
         } else if (stockMode === 'In') {
             if (dnBadge) dnBadge.style.display = 'none';
             if (sourceCont) sourceCont.style.display = 'block';
+            if (lotActions) lotActions.style.display = 'block';
             updateSourceType();
         } else {
             // Outbound
@@ -1755,6 +1888,7 @@
             if (sourceCont) sourceCont.style.display = 'none';
             if (suppCont) suppCont.style.display = 'none';
             if (custCont) custCont.style.display = 'block';
+            if (lotActions) lotActions.style.display = 'none';
             toggleChecklist(false);
         }
         renderSessionBadges();
@@ -1767,15 +1901,6 @@
 
         suppCont.style.display = (type === 'Purchase') ? 'block' : 'none';
         custCont.style.display = (type === 'Return Stock') ? 'block' : 'none';
-
-        if (type === 'Internal Production' || type === 'Production') {
-            saveInboundSource({
-                source_type: 'Production',
-                ui_source_type: 'Internal Production',
-                supplier: null,
-                customer: null
-            });
-        }
     }
 
     async function fetchMetadata() {
@@ -1895,38 +2020,110 @@
         localStorage.removeItem('active_inbound_source');
     }
 
-    function getInboundSourceSelection() {
+    function getInboundContextLabel(selection) {
+        if (!selection) return { source: 'Not set', partner: 'Required on first scan' };
+        if (selection.source_type === 'Production') return { source: 'Internal Production', partner: 'Not required' };
+        if (selection.source_type === 'Purchase') return { source: 'Purchase', partner: selection.supplier || 'Supplier required' };
+        if (selection.source_type === 'Return Stock') return { source: 'Return Stock', partner: selection.customer || 'Customer required' };
+        return { source: selection.ui_source_type || selection.source_type || 'Not set', partner: selection.supplier || selection.customer || 'Not required' };
+    }
+
+    function renderInboundContext() {
+        const panel = document.getElementById('inbound-context-panel');
+        if (!panel) return;
+
+        if (stockMode !== 'In') {
+            panel.classList.remove('active');
+            return;
+        }
+
+        const selection = getInboundSourceSelection();
+        const label = getInboundContextLabel(selection);
+        document.getElementById('ctx-mode').innerText = 'Inbound';
+        document.getElementById('ctx-lot-count').innerText = `${truckTotal} carton${truckTotal === 1 ? '' : 's'}`;
+        document.getElementById('ctx-source').innerText = label.source;
+        document.getElementById('ctx-partner').innerText = label.partner;
+        panel.classList.add('active');
+    }
+
+    function continueCurrentLot() {
+        const panel = document.getElementById('settings-panel');
+        if (panel && panel.style.display === 'block') panel.style.display = 'none';
+        hideLotCloseOverlay();
+        showStatus('LOT ACTIVE', 'Continuing current inbound lot', 'success');
+    }
+
+    function hideLotCloseOverlay() {
+        const overlay = document.getElementById('lot-close-overlay');
+        if (overlay) overlay.style.display = 'none';
+    }
+
+    function confirmCloseInboundLot() {
+        if (stockMode !== 'In') return;
+        const selection = getInboundSourceSelection();
+        const label = getInboundContextLabel(selection);
+        const overlay = document.getElementById('lot-close-overlay');
+        const summary = document.getElementById('lot-close-summary');
+        const details = document.getElementById('lot-close-details');
+        if (!overlay || !summary || !details) return;
+
+        summary.innerText = `${truckTotal} carton${truckTotal === 1 ? '' : 's'} scanned in this lot`;
+        details.innerHTML = `
+            <div style="display:grid; gap:10px;">
+                <div><strong style="color:white;">Source</strong><div style="color:#cbd5e1; margin-top:4px;">${label.source}</div></div>
+                <div><strong style="color:white;">Partner</strong><div style="color:#cbd5e1; margin-top:4px;">${label.partner}</div></div>
+                <div><strong style="color:white;">Unique Items</strong><div style="color:#cbd5e1; margin-top:4px;">${Object.keys(sessionItems).length}</div></div>
+            </div>
+        `;
+        overlay.style.display = 'flex';
+    }
+
+    function finalizeCloseInboundLot() {
+        hideLotCloseOverlay();
+        truckTotal = 0;
+        mappingCount = 0;
+        sessionItems = {};
+        history = [];
+        clearInboundSource();
+        localStorage.removeItem('scanner_truck_total');
+        localStorage.removeItem('scanner_mapping_count');
+        localStorage.removeItem('scanner_session_items');
+        localStorage.removeItem('scanner_history');
+        renderHistory();
+        renderSessionBadges();
+        renderTruckSummary();
+        showStatus('NEW LOT', 'Inbound lot cleared. Set source on first scan.', 'success');
+    }
+
+    function getInboundGuardMessage() {
+        if (stockMode !== 'In') return null;
         const sourceType = document.getElementById('source-type').value;
-        const supplier = document.getElementById('supplier-input').value;
-        const customer = document.getElementById('customer-input').value;
+        const supplier = document.getElementById('supplier-input').value.trim();
+        const customer = document.getElementById('customer-input').value.trim();
+        if (sourceType === 'Purchase' && !supplier && !activeInboundSource) return 'Select supplier first';
+        if (sourceType === 'Return Stock' && !customer && !activeInboundSource) return 'Select customer first';
+        return null;
+    }
 
-        if (sourceType === 'Internal Production' || sourceType === 'Production') {
-            return {
-                source_type: 'Production',
-                ui_source_type: 'Internal Production',
-                supplier: null,
-                customer: null
-            };
-        }
+    function showInboundScanCard(itemName, cartonNo, qty, uom) {
+        const card = document.getElementById('scan-feedback-card');
+        const nameEl = document.getElementById('fb-name');
+        const progEl = document.getElementById('fb-progress');
+        const statusEl = document.getElementById('fb-status');
+        const undoBtn = document.getElementById('fb-undo');
+        if (!card || !nameEl || !progEl || !statusEl) return;
 
-        if (sourceType === 'Purchase' && supplier) {
-            return {
-                source_type: 'Purchase',
-                ui_source_type: 'Purchase',
-                supplier,
-                customer: null
-            };
-        }
+        statusEl.innerText = 'STOCKED IN';
+        statusEl.style.color = 'var(--success)';
+        nameEl.innerText = `${itemName} • ${cartonNo}`;
+        progEl.innerText = `${qty} ${uom || ''}`.trim();
+        if (undoBtn) undoBtn.style.display = 'none';
+        card.classList.add('show');
+        clearTimeout(feedbackTimer);
+        feedbackTimer = setTimeout(() => card.classList.remove('show'), 2500);
+    }
 
-        if (sourceType === 'Return Stock' && customer) {
-            return {
-                source_type: 'Return Stock',
-                ui_source_type: 'Return Stock',
-                supplier: null,
-                customer
-            };
-        }
-
+    function getInboundSourceSelection() {
         return activeInboundSource;
     }
 
@@ -1954,6 +2151,24 @@
                 customer: null
             });
         }
+    }
+
+    function handleSourceTypeChange() {
+        const type = document.getElementById('source-type').value;
+        updateSourceType();
+        if (type === 'Internal Production' || type === 'Production') {
+            saveInboundSource({
+                source_type: 'Production',
+                ui_source_type: 'Internal Production',
+                supplier: null,
+                customer: null
+            });
+        } else if (type === 'Purchase') {
+            clearInboundSource();
+        } else if (type === 'Return Stock') {
+            clearInboundSource();
+        }
+        renderInboundContext();
     }
 
     function rememberCustomerInput(value) {
@@ -2150,6 +2365,7 @@
                     saveInboundSource(inboundSelection);
                     applyInboundSourceSelection(inboundSelection);
                     updateStockMode(); 
+                    showInboundScanCard(res.item_name, res.carton_no, res.qty, res.uom);
                 } else if (logType === 'Out') {
                     const modeEl = document.getElementById('stock-mode');
                     if (modeEl) modeEl.value = 'Out';
