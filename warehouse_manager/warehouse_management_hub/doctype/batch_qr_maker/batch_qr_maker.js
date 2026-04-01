@@ -1,5 +1,9 @@
 frappe.ui.form.on('Batch QR Maker', {
 	refresh: function(frm) {
+		// Force the correct print format to be selected by default
+		if (frm.doc.docstatus === 1) {
+			frm.set_df_property('items', 'print_hide', 1); // Hide the table in standard prints too
+		}
 		// DRAFT Status (Docstatus 0)
 		if (frm.doc.docstatus === 0 && !frm.is_new()) {
 			if (frm.doc.status === 'Draft') {
@@ -21,8 +25,18 @@ frappe.ui.form.on('Batch QR Maker', {
 		if (frm.doc.docstatus === 1) {
 			// Explicit Print Button for A5 Labels
 			frm.add_custom_button(__('Print Labels (A5)'), function() {
-				// Use set_route to force the specific print format
-				frappe.set_route('print', frm.doctype, frm.docname, 'Batch Labels A5');
+				const url = frappe.urllib.get_full_url(
+					'/printview?doctype=' +
+						encodeURIComponent(frm.doctype) +
+						'&name=' +
+						encodeURIComponent(frm.docname) +
+						'&trigger_print=1' +
+						'&format=' +
+						encodeURIComponent('Batch Labels A5') +
+						'&no_letterhead=1' +
+						(frappe.boot.lang ? '&_lang=' + encodeURIComponent(frappe.boot.lang) : '')
+				);
+				window.location.href = url;
 			}).addClass('btn-primary').css({'background-color': '#1a73e8', 'color': 'white', 'font-weight': 'bold'});
 
 			if (frm.doc.status === 'Generated') {
@@ -51,5 +65,10 @@ frappe.ui.form.on('Batch QR Maker', {
 				$(row).css('background-color', '#f8d7da'); // Light red for cancelled
 			}
 		});
+	},
+	before_print: function(frm) {
+		if (frm.doc.docstatus === 1) {
+			frm.print_preview.print_format = 'Batch Labels A5';
+		}
 	}
 });
