@@ -65,13 +65,17 @@ frappe.ui.form.on('Batch QR Maker', {
 		}
 
 		// Table Styling
+		const statusColors = {
+			'In Stock': '#e8f7ee',
+			'Dispatched': '#eef4ff',
+			'Cancelled': '#fdebec',
+			'Draft': '#f7f8fa',
+			'Generated': '#fff8e6'
+		};
 		frm.fields_dict['items'].grid.wrapper.find('.grid-row').each(function(i, row) {
-			let doc = frm.doc.items[i];
-			if (doc && doc.status === 'Logged') {
-				$(row).css('background-color', '#d4edda'); // Light green for logged
-			} else if (doc && doc.status === 'Cancelled') {
-				$(row).css('background-color', '#f8d7da'); // Light red for cancelled
-			}
+			const child = frm.doc.items[i];
+			const background = child ? (statusColors[child.status] || '#ffffff') : '#ffffff';
+			$(row).css('background-color', background);
 		});
 
 		if (frm.doc.docstatus > 0) {
