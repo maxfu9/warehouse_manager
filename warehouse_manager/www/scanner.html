@@ -2866,11 +2866,15 @@
     function saveInboundSource(source) {
         activeInboundSource = source;
         localStorage.setItem('active_inbound_source', JSON.stringify(source));
+        renderSessionBadges();
+        renderTruckSummary();
     }
 
     function clearInboundSource() {
         activeInboundSource = null;
         localStorage.removeItem('active_inbound_source');
+        renderSessionBadges();
+        renderTruckSummary();
     }
 
     function getInboundContextLabel(selection) {
@@ -3068,6 +3072,8 @@
         if (custEl) custEl.value = selection.customer || '';
 
         updateSourceType();
+        renderSessionBadges();
+        renderTruckSummary();
     }
 
     function rememberSupplierInput(value) {
@@ -3079,6 +3085,9 @@
                 supplier: trimmed,
                 customer: null
             });
+            showStatus('SUPPLIER SET', trimmed, 'success');
+        } else if (stockMode === 'In' && document.getElementById('source-type')?.value === 'Purchase') {
+            clearInboundSource();
         }
     }
 
@@ -3092,16 +3101,21 @@
                 supplier: null,
                 customer: null
             });
+            showStatus('SOURCE SET', 'Inbound source set to Internal Production', 'success');
         } else if (type === 'Purchase') {
             clearInboundSource();
         } else if (type === 'Return Stock') {
             clearInboundSource();
         }
+        renderSessionBadges();
+        renderTruckSummary();
     }
 
     function rememberCustomerInput(value) {
         const trimmed = (value || '').trim();
-        setMapping('Customer', value, value, true);
+        if (stockMode !== 'In') {
+            setMapping('Customer', value, value, true);
+        }
         if (stockMode === 'In' && document.getElementById('source-type').value === 'Return Stock' && trimmed) {
             saveInboundSource({
                 source_type: 'Return Stock',
@@ -3109,7 +3123,12 @@
                 supplier: null,
                 customer: trimmed
             });
+            showStatus('CUSTOMER SET', trimmed, 'success');
+        } else if (stockMode === 'In' && document.getElementById('source-type').value === 'Return Stock' && !trimmed) {
+            clearInboundSource();
         }
+        renderSessionBadges();
+        renderTruckSummary();
     }
 
     function showWorkflow(type, data) {
