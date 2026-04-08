@@ -1,5 +1,13 @@
 frappe.ui.form.on('Batch QR Maker', {
 	refresh: function(frm) {
+		const scanned = cint(frm.doc.scanned_cartons || 0);
+		const dispatched = cint(frm.doc.dispatched_cartons || 0);
+		const remaining = Math.max(scanned - dispatched, 0);
+		if (frm.doc.remaining_stock !== remaining) {
+			frm.doc.remaining_stock = remaining;
+			frm.refresh_field('remaining_stock');
+		}
+
 		// Force the correct print format to be selected by default
 		if (frm.doc.docstatus === 1) {
 			frm.set_df_property('items', 'print_hide', 1); // Hide the table in standard prints too
@@ -65,6 +73,20 @@ frappe.ui.form.on('Batch QR Maker', {
 				$(row).css('background-color', '#f8d7da'); // Light red for cancelled
 			}
 		});
+
+		if (frm.doc.docstatus > 0) {
+			frm.set_intro(
+				__('Stock Snapshot: {0} in stock, {1} remaining, {2} dispatched, {3} cancelled.', [
+					scanned,
+					remaining,
+					dispatched,
+					cint(frm.doc.cancelled_cartons || 0)
+				]),
+				remaining > 0 ? 'blue' : 'orange'
+			);
+		} else {
+			frm.set_intro(__('Generate cartons and submit the batch to start tracking stock movement.'), 'blue');
+		}
 	},
 	before_print: function(frm) {
 		if (frm.doc.docstatus === 1) {

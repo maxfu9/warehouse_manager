@@ -805,6 +805,12 @@ def update_batch_maker_status(batch_id, carton_no, status):
 	if not batch_id: return
 	
 	try:
+		previous_status = frappe.db.get_value(
+			"Batch QR Maker Item",
+			{"parent": batch_id, "carton_no": carton_no},
+			"status",
+		)
+
 		# 1. Update the child table row for this specific carton
 		frappe.db.sql("""
 			UPDATE `tabBatch QR Maker Item` 
@@ -812,13 +818,27 @@ def update_batch_maker_status(batch_id, carton_no, status):
 			WHERE parent = %s AND carton_no = %s
 		""", (status, batch_id, carton_no))
 		
-		# 2. Update the parent status counts (Optimistic update)
-		# We'll let the user click 'Close' for final reconciliation, 
-		# but we can update the counts here for the live dashboard.
-		if status == "In Stock":
-			frappe.db.sql("UPDATE `tabBatch QR Maker` SET scanned_cartons = scanned_cartons + 1 WHERE name = %s", (batch_id,))
-		elif status == "Dispatched":
-			frappe.db.sql("UPDATE `tabBatch QR Maker` SET dispatched_cartons = dispatched_cartons + 1 WHERE name = %s", (batch_id,))
+		scanned_delta = 0
+		dispatched_delta = 0
+
+		if previous_status != "In Stock" and status == "In Stock":
+			scanned_delta += 1
+		if previous_status == "In Stock" and status == "Dispatched":
+			dispatched_delta += 1
+		elif previous_status != "Dispatched" and status == "Dispatched":
+			dispatched_delta += 1
+
+		if scanned_delta or dispatched_delta:
+			frappe.db.sql(
+				"""
+				UPDATE `tabBatch QR Maker`
+				SET scanned_cartons = scanned_cartons + %s,
+					dispatched_cartons = dispatched_cartons + %s,
+					remaining_stock = GREATEST((scanned_cartons + %s) - (dispatched_cartons + %s), 0)
+				WHERE name = %s
+				""",
+				(scanned_delta, dispatched_delta, scanned_delta, dispatched_delta, batch_id),
+			)
 			
 		# 3. Notify the Desk UI via Websockets
 		frappe.publish_realtime('batch_status_update', {

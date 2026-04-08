@@ -16,6 +16,11 @@ class BatchQRMaker(Document):
 		if self.status == "Draft" or not self.items:
 			frappe.throw(_("Please generate cartons before submitting the batch."))
 
+	def before_save(self):
+		scanned = int(self.scanned_cartons or 0)
+		dispatched = int(self.dispatched_cartons or 0)
+		self.remaining_stock = max(scanned - dispatched, 0)
+
 	def get_qr_svg(self, data):
 		"""Generates an SVG string for the QR code."""
 		if not data:
@@ -61,6 +66,10 @@ class BatchQRMaker(Document):
 			})
 			
 		self.status = "Generated"
+		self.scanned_cartons = 0
+		self.dispatched_cartons = 0
+		self.cancelled_cartons = 0
+		self.remaining_stock = 0
 		self.save(ignore_permissions=True)
 		frappe.db.commit()
 		return _("Generated {0} carton records").format(self.no_of_cartons)
@@ -98,6 +107,7 @@ class BatchQRMaker(Document):
 		self.scanned_cartons = scanned
 		self.dispatched_cartons = dispatched
 		self.cancelled_cartons = cancelled
+		self.remaining_stock = max(scanned - dispatched, 0)
 		self.save(ignore_permissions=True)
 		frappe.db.commit()
 		
