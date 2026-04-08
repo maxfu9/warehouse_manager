@@ -159,14 +159,11 @@
             -webkit-backdrop-filter: blur(14px);
             box-shadow: 0 14px 28px rgba(0,0,0,0.24);
         }
-        #checklist-panel.open {
-            display: block;
-        }
-        .dn-session-body {
-            margin-top: 14px;
-        }
-        #checklist-panel:not(.open) .dn-session-body {
+        #checklist-items-card {
             display: none;
+        }
+        #checklist-items-card.open {
+            display: block;
         }
         #checklist-items {
             display: grid;
@@ -1148,9 +1145,15 @@
                 <div class="dn-progress-rail">
                     <div class="dn-progress-bar" id="checklist-progress-bar"></div>
                 </div>
-                <div class="dn-session-body">
-                    <div id="checklist-items"></div>
+            </div>
+            <div class="summary-card" id="checklist-items-card">
+                <div class="summary-head">
+                    <div>
+                        <div class="summary-title">DN Items</div>
+                        <div class="summary-subtitle">Scroll through the checklist with the rest of the page</div>
+                    </div>
                 </div>
+                <div id="checklist-items"></div>
             </div>
             <div class="summary-card">
                 <div class="summary-head">
@@ -2534,6 +2537,7 @@
         const container = document.getElementById('checklist-items');
         if (!container) return;
         const panel = document.getElementById('checklist-panel');
+        const itemsCard = document.getElementById('checklist-items-card');
         const toggleBtn = document.getElementById('checklist-toggle-btn');
         const dnIdEl = document.getElementById('checklist-dn-id');
         const customerEl = document.getElementById('checklist-customer');
@@ -2541,7 +2545,7 @@
         const progressBarEl = document.getElementById('checklist-progress-bar');
         if (panel) panel.style.display = activeDN ? 'block' : 'none';
         if (toggleBtn) toggleBtn.innerText = dnItemsExpanded ? 'HIDE ITEMS' : 'VIEW ITEMS';
-        if (panel) panel.classList.toggle('open', !!activeDN && dnItemsExpanded);
+        if (itemsCard) itemsCard.classList.toggle('open', !!activeDN && dnItemsExpanded);
         if (!activeDN) {
             if (container) container.innerHTML = '';
             if (dnIdEl) dnIdEl.innerText = 'Delivery Note';
@@ -2552,10 +2556,12 @@
                 <div class="dn-progress-stat"><div class="dn-progress-value">0%</div><div class="dn-progress-label">Complete</div></div>
             `;
             if (progressBarEl) progressBarEl.style.width = '0%';
+            if (itemsCard) itemsCard.style.display = 'none';
             return;
         }
         if (dnIdEl) dnIdEl.innerText = activeDN.dn_id || 'Delivery Note';
         if (customerEl) customerEl.innerText = activeDN.customer || activeCustomerName || 'No customer found';
+        if (itemsCard) itemsCard.style.display = dnItemsExpanded ? 'block' : 'none';
         if (statsEl && activeDN) {
             const remaining = Math.max((dnTotalCount || 0) - (dnMatchCount || 0), 0);
             const percent = dnTotalCount ? Math.round((dnMatchCount / dnTotalCount) * 100) : 0;
