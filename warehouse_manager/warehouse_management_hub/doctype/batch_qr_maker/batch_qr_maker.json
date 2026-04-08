@@ -58,13 +58,6 @@
    "label": "Stock Snapshot"
   },
   {
-   "fieldname": "items",
-   "fieldtype": "Table",
-   "label": "Cartons",
-   "options": "Batch QR Maker Item",
-   "read_only": 1
-  },
-  {
    "fieldname": "summary_column_break_1",
    "fieldtype": "Column Break"
   },
@@ -111,6 +104,18 @@
    "label": "Cancelled",
    "read_only": 1,
    "allow_on_submit": 1
+  },
+  {
+   "fieldname": "cartons_section",
+   "fieldtype": "Section Break",
+   "label": "Cartons"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Cartons",
+   "options": "Batch QR Maker Item",
+   "read_only": 1
   },
   {
    "fieldname": "amended_from",
