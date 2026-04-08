@@ -20,6 +20,7 @@
             --card: rgba(30, 41, 59, 0.7);
             --text: #f8fafc;
             --scan-box-size: min(58vw, 240px);
+            --scan-box-offset-y: -12px;
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -698,8 +699,8 @@
             position: sticky;
             top: 0;
             order: -1;
-            height: 42vh;
-            min-height: 270px;
+            height: 39vh;
+            min-height: 250px;
             background: #000;
             overflow: hidden;
             z-index: 95;
@@ -764,12 +765,14 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
             pointer-events: none;
             z-index: 8;
         }
         .scanner-reticle {
             width: var(--scan-box-size);
             height: var(--scan-box-size);
+            transform: translateY(var(--scan-box-offset-y));
             border-radius: 28px;
             border: 2px solid rgba(255,255,255,0.85);
             box-shadow: 0 0 0 200vmax rgba(0,0,0,0.22);
@@ -2374,7 +2377,7 @@
                 </div>
                 <div class="summary-stat">
                     <div class="summary-stat-value">${totalScans || 0}</div>
-                    <div class="summary-stat-label">Scans</div>
+                    <div class="summary-stat-label">CTN</div>
                 </div>
             `;
         }
@@ -2396,7 +2399,7 @@
                     </div>
                     <div class="summary-row-meta">
                         <div class="summary-pill neutral">${qty}</div>
-                        <div class="summary-pill">${count} ${count === 1 ? 'SCAN' : 'SCANS'}</div>
+                        <div class="summary-pill">${count} CTN</div>
                     </div>
                 </div>
             `;
