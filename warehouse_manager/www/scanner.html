@@ -151,6 +151,13 @@
         /* Checkbox & History */
         #checklist-panel {
             display: none;
+            position: sticky;
+            top: 8px;
+            z-index: 16;
+            background: linear-gradient(180deg, rgba(20, 28, 40, 0.98), rgba(20, 28, 40, 0.92));
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            box-shadow: 0 14px 28px rgba(0,0,0,0.24);
         }
         #checklist-panel.open {
             display: block;
@@ -169,6 +176,12 @@
             display: flex;
             gap: 10px;
             align-items: center;
+        }
+        .dn-customer-name {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #f8fafc;
+            line-height: 1.2;
         }
         .dn-session-btn {
             border: none;
@@ -1071,7 +1084,7 @@
                 <div class="summary-head">
                     <div>
                         <div class="summary-title" id="checklist-dn-id">Delivery Note</div>
-                        <div class="summary-subtitle" id="checklist-customer">Scan DN to start</div>
+                        <div class="dn-customer-name" id="checklist-customer">Scan DN to start</div>
                     </div>
                     <div class="dn-session-actions">
                         <button class="dn-session-btn" id="checklist-toggle-btn" onclick="toggleChecklist()">VIEW ITEMS</button>
@@ -2323,6 +2336,13 @@
                 if (entityIconEl) entityIconEl.innerText = '🚚';
                 
                 if (dnEl) dnEl.style.display = 'none';
+
+                if (stockMode === 'Delivery' && activeDN) {
+                    entityRow.style.display = 'none';
+                    entityRow.classList.remove('pulse-alert');
+                    renderTruckSummary();
+                    return;
+                }
 
                 if (entityNameEl) {
                     if (!activeCustomer) {
