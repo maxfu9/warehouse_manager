@@ -16,7 +16,12 @@ function apply_item_row_colors(frm) {
 }
 
 function render_items_qty_total(frm) {
-	const totalQty = (frm.doc.items || []).reduce((sum, item) => sum + flt(item.qty || 0), 0);
+	const totalQty = (frm.doc.items || []).reduce((sum, item) => {
+		if (!item || item.status === 'Cancelled') {
+			return sum;
+		}
+		return sum + flt(item.qty || 0);
+	}, 0);
 	const wrapper = frm.fields_dict.items.grid.wrapper;
 	wrapper.find('.batch-items-total-row').remove();
 
