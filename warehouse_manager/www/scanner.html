@@ -378,7 +378,7 @@
         }
         .summary-stats {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
             margin-bottom: 14px;
         }
@@ -386,7 +386,13 @@
             background: rgba(255,255,255,0.04);
             border: 1px solid rgba(255,255,255,0.05);
             border-radius: 16px;
-            padding: 12px;
+            padding: 14px 12px;
+            min-height: 84px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
         }
         .summary-stat-value {
             font-size: 1.35rem;
