@@ -43,6 +43,20 @@ class CartonQR(Document):
 
 	@property
 	def qr_svg(self):
-		"""Returns the QR SVG string for this carton. Useful for Jinja templates."""
-		from warehouse_manager.api import generate_qr_svg
-		return generate_qr_svg(self.signed_data or self.name, scale=5)
+		"""Returns the QR SVG string for this carton. Hardened for Jinja."""
+		try:
+			from warehouse_manager.api import generate_qr_svg
+			# Ensure we always have some data to encode
+			data = self.signed_data or self.name or "UNKNOWN"
+			return generate_qr_svg(data, scale=12)
+		except Exception as e:
+			frappe.log_error(f"QR Generation Error for {self.name}: {str(e)}")
+			error_text = frappe.as_unicode(e)
+			return f"""
+				<div style="border: 2px solid #b91c1c; color: #b91c1c; background: #fef2f2; padding: 12px; text-align: center; font-weight: 700;">
+					QR generation failed for {frappe.utils.escape_html(self.name or "Unknown Carton")}
+					<div style="margin-top: 6px; font-size: 12px; font-weight: 500;">
+						{frappe.utils.escape_html(error_text)}
+					</div>
+				</div>
+			"""
