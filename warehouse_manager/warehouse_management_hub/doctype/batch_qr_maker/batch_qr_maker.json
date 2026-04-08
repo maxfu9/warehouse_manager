@@ -8,6 +8,12 @@
  "engine": "InnoDB",
  "fields": [
   {
+   "fieldname": "batch_details_section",
+   "fieldtype": "Section Break",
+   "label": "Batch Details"
+  },
+  {
+   "description": "Select the item for which cartons will be generated in this batch.",
    "fieldname": "item",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -16,26 +22,11 @@
    "reqd": 1
   },
   {
-   "fieldname": "qty_per_carton",
-   "fieldtype": "Float",
-   "in_list_view": 1,
-   "label": "Qty per Carton",
-   "reqd": 1
+   "fieldname": "batch_details_column_break",
+   "fieldtype": "Column Break"
   },
   {
-   "fieldname": "no_of_cartons",
-   "fieldtype": "Int",
-   "in_list_view": 1,
-   "label": "No of Cartons",
-   "reqd": 1
-  },
-  {
-   "fieldname": "uom",
-   "fieldtype": "Link",
-   "label": "UOM",
-   "options": "UOM"
-  },
-  {
+   "description": "Batch packing or generation date used on labels and tracking.",
    "fieldname": "date",
    "fieldtype": "Date",
    "label": "Date",
@@ -43,6 +34,11 @@
    "default": "Today"
   },
   {
+   "fieldname": "batch_details_column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Current workflow state of the batch record.",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -51,6 +47,42 @@
    "default": "Draft",
    "read_only": 1,
    "allow_on_submit": 1
+  },
+  {
+   "fieldname": "carton_setup_section",
+   "fieldtype": "Section Break",
+   "label": "Carton Setup"
+  },
+  {
+   "description": "Quantity that each generated carton will carry.",
+   "fieldname": "qty_per_carton",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Qty per Carton",
+   "reqd": 1
+  },
+  {
+   "fieldname": "carton_setup_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Total number of cartons to generate for this batch.",
+   "fieldname": "no_of_cartons",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "No of Cartons",
+   "reqd": 1
+  },
+  {
+   "fieldname": "carton_setup_column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Unit of measure used for carton quantity and labels.",
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "label": "UOM",
+   "options": "UOM"
   },
   {
    "fieldname": "stock_snapshot_section",
@@ -111,6 +143,7 @@
    "label": "Cartons"
   },
   {
+   "description": "Generated carton records for this batch with their latest status.",
    "fieldname": "items",
    "fieldtype": "Table",
    "label": "Cartons",
@@ -118,6 +151,7 @@
    "read_only": 1
   },
   {
+   "description": "Original batch reference when this record is created as an amendment.",
    "fieldname": "amended_from",
    "fieldtype": "Link",
    "label": "Amended From",
