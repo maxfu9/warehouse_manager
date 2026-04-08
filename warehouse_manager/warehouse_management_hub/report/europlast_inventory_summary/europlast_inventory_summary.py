@@ -90,19 +90,19 @@ def get_data(filters):
 
 	raw_data = frappe.db.sql(
 		f"""
-		SELECT 
-			sl.item,
-			item.item_name,
-			sl.batch,
-			sl.uom,
-			SUM(CASE WHEN sl.type = 'In' THEN sl.qty ELSE 0 END) as total_in,
-			SUM(CASE WHEN sl.type = 'Out' THEN sl.qty ELSE 0 END) as total_out,
-			SUM(
-				CASE
-					WHEN latest.name IS NOT NULL AND latest.type = 'In' THEN 1
-					ELSE 0
-				END
-			) as carton_count,
+			SELECT 
+				sl.item,
+				item.item_name,
+				sl.batch,
+				sl.uom,
+				SUM(CASE WHEN sl.type = 'In' THEN sl.qty ELSE 0 END) as total_in,
+				SUM(CASE WHEN sl.type = 'Out' THEN sl.qty ELSE 0 END) as total_out,
+				COUNT(
+					DISTINCT CASE
+						WHEN latest.name IS NOT NULL AND latest.type = 'In' THEN latest.carton_no
+						ELSE NULL
+					END
+				) as carton_count,
 			GROUP_CONCAT(
 				DISTINCT CASE
 					WHEN latest.name IS NOT NULL AND latest.type = 'In' THEN latest.carton_no

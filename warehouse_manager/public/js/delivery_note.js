@@ -35,6 +35,11 @@ function addDispatchedCartonsButton(frm) {
 }
 
 function showDispatchedCartonsDialog(frm, cartons) {
+    const cartonNames = [...new Set((cartons || [])
+        .map((row) => row.carton_qr_name)
+        .filter(Boolean))];
+    const canOpenCartonList = cartonNames.length > 0 && cartonNames.length <= 60;
+
     const rows = (cartons || []).map((row) => {
         const cartonLabel = frappe.utils.escape_html(row.carton_no || "");
         const itemLabel = frappe.utils.escape_html(row.item_name || row.item || "");
@@ -63,19 +68,21 @@ function showDispatchedCartonsDialog(frm, cartons) {
                 fieldname: "cartons_html"
             }
         ],
-        primary_action_label: __("Open Carton QR List"),
+        primary_action_label: canOpenCartonList
+            ? __("Open Carton QR List")
+            : __("Open Stock Log"),
         primary_action: () => {
-            const cartonNames = (cartons || [])
-                .map((row) => row.carton_qr_name)
-                .filter(Boolean);
-
-            if (!cartonNames.length) {
-                frappe.msgprint(__("No Carton QR records were found for this Delivery Note."));
+            if (canOpenCartonList) {
+                frappe.set_route("List", "Carton QR", {
+                    name: ["in", cartonNames]
+                });
+                dialog.hide();
                 return;
             }
 
-            frappe.set_route("List", "Carton QR", {
-                name: ["in", cartonNames]
+            frappe.set_route("List", "Stock Log", {
+                delivery_note: frm.doc.name,
+                type: "Out"
             });
             dialog.hide();
         }
@@ -85,6 +92,11 @@ function showDispatchedCartonsDialog(frm, cartons) {
         <div style="margin-bottom: 12px; color: #6b7280;">
             ${__("These cartons were dispatched against Delivery Note {0}.", [frappe.utils.escape_html(frm.doc.name)])}
         </div>
+        ${!canOpenCartonList ? `
+            <div style="margin-bottom: 12px; color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; padding: 10px 12px; border-radius: 10px;">
+                ${__("This Delivery Note has many cartons, so the action button opens filtered Stock Log records instead of a Carton QR list.")}
+            </div>
+        ` : ""}
         <div style="max-height: 420px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 12px;">
             <table style="width: 100%; border-collapse: collapse;">
                 <thead style="position: sticky; top: 0; background: #f9fafb;">
