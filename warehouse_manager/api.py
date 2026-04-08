@@ -453,8 +453,10 @@ def handle_stock_log(**kwargs):
 			c = frappe.get_doc("Carton QR", carton_no)
 			item_code = c.item if not item_code else item_code
 			qty = c.qty
+			uom = c.uom or frappe.db.get_value("Item", c.item, "stock_uom")
 		else:
-			qty = 1 
+			qty = 1
+			uom = frappe.db.get_value("Item", item_code, "stock_uom") if item_code else None
 
 		# Resolved Item Code
 		curr_item = str(item_code or "").strip().upper()
@@ -523,6 +525,7 @@ def handle_stock_log(**kwargs):
 			"batch": batch,
 			"type": final_type,
 			"qty": qty,
+			"uom": uom,
 			"delivery_note": clean_dn if (final_type == "Out" and 'clean_dn' in locals()) else (delivery_note if final_type == "Out" else None),
 			"customer": customer if final_type == "Out" else None,
 			"source_type": source_type if final_type == "In" else None,

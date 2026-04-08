@@ -128,7 +128,7 @@ def get_data(filters):
 		) latest ON latest.carton_no = sl.carton_no
 			AND latest.item = sl.item
 			AND IFNULL(latest.batch, '') = IFNULL(sl.batch, '')
-			AND latest.uom = sl.uom
+			AND IFNULL(latest.uom, '') = IFNULL(sl.uom, '')
 		WHERE 1=1 {where_clause}
 		GROUP BY sl.item, item.item_name, sl.batch, sl.uom
 		ORDER BY SUM(CASE WHEN sl.type = 'In' THEN sl.qty ELSE 0 END) - SUM(CASE WHEN sl.type = 'Out' THEN sl.qty ELSE 0 END) DESC

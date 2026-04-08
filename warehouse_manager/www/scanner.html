@@ -19,6 +19,7 @@
             --bg: #0d1117;
             --card: rgba(30, 41, 59, 0.7);
             --text: #f8fafc;
+            --scan-box-size: min(58vw, 240px);
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -699,8 +700,8 @@
             z-index: 8;
         }
         .scanner-reticle {
-            width: min(70vw, 290px);
-            height: min(70vw, 290px);
+            width: var(--scan-box-size);
+            height: var(--scan-box-size);
             border-radius: 28px;
             border: 2px solid rgba(255,255,255,0.85);
             box-shadow: 0 0 0 200vmax rgba(0,0,0,0.22);
@@ -1209,13 +1210,21 @@
 
     function getScannerConfig() {
         const viewportBase = Math.min(window.innerWidth || 320, window.innerHeight || 640);
-        const boxSize = Math.max(220, Math.min(320, Math.floor(viewportBase * 0.56)));
-        return {
-            fps: 20,
+        const boxSize = Math.max(180, Math.min(240, Math.floor(viewportBase * 0.42)));
+        document.documentElement.style.setProperty('--scan-box-size', `${boxSize}px`);
+
+        const config = {
+            fps: 24,
             qrbox: { width: boxSize, height: boxSize },
-            aspectRatio: 1.0,
+            aspectRatio: 1.333334,
             rememberLastUsedCamera: true
         };
+
+        if (window.Html5QrcodeSupportedFormats?.QR_CODE) {
+            config.formatsToSupport = [Html5QrcodeSupportedFormats.QR_CODE];
+        }
+
+        return config;
     }
 
     function clearScannerRecoveryTimer() {
@@ -1350,7 +1359,7 @@
         scansSinceRestart += 1;
         setScannerHealth('SCANNING ACTIVE');
         isScanningBlocked = true;
-        setTimeout(() => { isScanningBlocked = false; }, 1500); // 1.5s industrial debounce
+        setTimeout(() => { isScanningBlocked = false; }, 700);
         
         // 1. Identity Detection
         const isDN = /DN-26\d+/i.test(decodedText) || 
