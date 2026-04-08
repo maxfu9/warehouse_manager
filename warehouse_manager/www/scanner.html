@@ -40,6 +40,21 @@
             overflow: hidden; position: relative;
             flex-shrink: 0; box-shadow: 0 4px 30px rgba(0,0,0,0.5);
             z-index: 5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #reader video,
+        #reader canvas {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+        }
+        #reader__scan_region {
+            display: none !important;
+        }
+        #reader__dashboard {
+            display: none !important;
         }
 
 
