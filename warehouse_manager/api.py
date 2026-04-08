@@ -527,7 +527,7 @@ def handle_stock_log(**kwargs):
 			"qty": qty,
 			"uom": uom,
 			"delivery_note": clean_dn if (final_type == "Out" and 'clean_dn' in locals()) else (delivery_note if final_type == "Out" else None),
-			"customer": customer if final_type == "Out" else None,
+			"customer": customer if (final_type == "Out" or (final_type == "In" and source_type == "Return Stock")) else None,
 			"source_type": source_type if final_type == "In" else None,
 			"supplier": supplier if (final_type == "In" and source_type == "Purchase") else None,
 			"scan_time": now_datetime()
