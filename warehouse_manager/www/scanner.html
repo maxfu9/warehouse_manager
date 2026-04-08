@@ -377,32 +377,31 @@
             letter-spacing: 0.06em;
         }
         .summary-stats {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            display: flex;
             gap: 10px;
             margin-bottom: 14px;
         }
         .summary-stat {
             background: rgba(255,255,255,0.04);
             border: 1px solid rgba(255,255,255,0.05);
-            border-radius: 16px;
-            padding: 14px 12px;
-            min-height: 84px;
+            border-radius: 999px;
+            padding: 10px 14px;
+            min-height: 0;
             display: flex;
-            flex-direction: column;
-            justify-content: center;
+            flex-direction: row;
             align-items: center;
-            text-align: center;
+            gap: 8px;
+            text-align: left;
         }
         .summary-stat-value {
-            font-size: 1.35rem;
+            font-size: 1.05rem;
             font-weight: 900;
             color: white;
             line-height: 1;
         }
         .summary-stat-label {
-            margin-top: 5px;
-            font-size: 0.68rem;
+            margin-top: 0;
+            font-size: 0.7rem;
             color: #94a3b8;
             letter-spacing: 0.08em;
             text-transform: uppercase;
