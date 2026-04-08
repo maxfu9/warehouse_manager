@@ -3267,6 +3267,11 @@
         
         const badgeText = document.getElementById('wf-type-badge').innerText;
         const logType = (badgeText === 'IN' || badgeText === 'INBOUND') ? 'In' : 'Out';
+        const normalizedBranchType = branchType === 'Supplier'
+            ? 'Purchase'
+            : branchType === 'Customer'
+                ? 'Return'
+                : branchType;
         
         // Manual Item Selection for Unknown Cartons
         const manualItemInput = document.getElementById('wf-item-id');
@@ -3276,9 +3281,9 @@
         const params = {
             mode: logType, 
             item_code: itemCode,
-            source_type: (logType === 'In') ? (branchType === 'Production' ? 'Production' : branchType) : null,
-            customer: (logType === 'Out' || branchType === 'Return') ? (actorName || activeCustomer) : null,
-            supplier: (logType === 'In' && branchType === 'Purchase') ? actorName : null,
+            source_type: (logType === 'In') ? (normalizedBranchType === 'Production' ? 'Production' : (normalizedBranchType === 'Return' ? 'Return Stock' : normalizedBranchType)) : null,
+            customer: (logType === 'Out' || normalizedBranchType === 'Return') ? (actorName || activeCustomer) : null,
+            supplier: (logType === 'In' && normalizedBranchType === 'Purchase') ? actorName : null,
             delivery_note: (activeDN && activeDN.dn_id) ? activeDN.dn_id : null
         };
 
@@ -3311,13 +3316,13 @@
                 if (logType === 'In') {
                     const modeEl = document.getElementById('stock-mode');
                     if (modeEl) modeEl.value = 'In';
-                    const finalSource = branchType === 'Production' ? 'Internal Production' : 
-                                      branchType === 'Purchase' ? 'Purchase' : 'Return Stock';
+                    const finalSource = normalizedBranchType === 'Production' ? 'Internal Production' : 
+                                      normalizedBranchType === 'Purchase' ? 'Purchase' : 'Return Stock';
                     const inboundSelection = {
-                        source_type: branchType === 'Production' ? 'Production' : finalSource,
+                        source_type: normalizedBranchType === 'Production' ? 'Production' : finalSource,
                         ui_source_type: finalSource,
-                        supplier: branchType === 'Purchase' ? actorName : null,
-                        customer: branchType === 'Return' ? actorName : null
+                        supplier: normalizedBranchType === 'Purchase' ? actorName : null,
+                        customer: normalizedBranchType === 'Return' ? actorName : null
                     };
                     saveInboundSource(inboundSelection);
                     applyInboundSourceSelection(inboundSelection);
