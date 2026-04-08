@@ -197,6 +197,21 @@
             color: #fca5a5;
             background: rgba(239,68,68,0.08);
         }
+        .dn-progress-rail {
+            margin-top: 14px;
+            width: 100%;
+            height: 4px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.16);
+            overflow: hidden;
+        }
+        .dn-progress-bar {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(59,130,246,0.92), rgba(16,185,129,0.92));
+            transition: width 0.28s ease;
+        }
 
         #history-panel {
             flex: 1; background: var(--bg);
@@ -1092,6 +1107,9 @@
                     </div>
                 </div>
                 <div id="checklist-stats" style="font-size: 0.8rem; color: #94a3b8; margin-top: 2px;">0 Items Total</div>
+                <div class="dn-progress-rail">
+                    <div class="dn-progress-bar" id="checklist-progress-bar"></div>
+                </div>
                 <div class="dn-session-body">
                     <div id="checklist-items"></div>
                 </div>
@@ -2482,6 +2500,7 @@
         const dnIdEl = document.getElementById('checklist-dn-id');
         const customerEl = document.getElementById('checklist-customer');
         const statsEl = document.getElementById('checklist-stats');
+        const progressBarEl = document.getElementById('checklist-progress-bar');
         if (panel) panel.style.display = activeDN ? 'block' : 'none';
         if (toggleBtn) toggleBtn.innerText = dnItemsExpanded ? 'HIDE ITEMS' : 'VIEW ITEMS';
         if (panel) panel.classList.toggle('open', !!activeDN && dnItemsExpanded);
@@ -2490,6 +2509,7 @@
             if (dnIdEl) dnIdEl.innerText = 'Delivery Note';
             if (customerEl) customerEl.innerText = 'Scan DN to start';
             if (statsEl) statsEl.innerText = '0 Items Total';
+            if (progressBarEl) progressBarEl.style.width = '0%';
             return;
         }
         if (dnIdEl) dnIdEl.innerText = activeDN.dn_id || 'Delivery Note';
@@ -2498,6 +2518,7 @@
             const remaining = Math.max((dnTotalCount || 0) - (dnMatchCount || 0), 0);
             const percent = dnTotalCount ? Math.round((dnMatchCount / dnTotalCount) * 100) : 0;
             statsEl.innerText = `${dnMatchCount} / ${dnTotalCount} scanned • ${remaining} remaining • ${percent}%`;
+            if (progressBarEl) progressBarEl.style.width = `${percent}%`;
         }
         
         container.innerHTML = Object.keys(dnChecklist).map(code => {
