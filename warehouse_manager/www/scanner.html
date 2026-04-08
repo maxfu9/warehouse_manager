@@ -2579,10 +2579,11 @@
         const customerEl = document.getElementById('checklist-customer');
         const statsEl = document.getElementById('checklist-stats');
         const progressBarEl = document.getElementById('checklist-progress-bar');
-        if (panel) panel.style.display = activeDN ? 'block' : 'none';
+        const showDeliveryUI = !!activeDN && stockMode === 'Delivery';
+        if (panel) panel.style.display = showDeliveryUI ? 'block' : 'none';
         if (toggleBtn) toggleBtn.innerText = dnItemsExpanded ? 'HIDE ITEMS' : 'VIEW ITEMS';
-        if (itemsCard) itemsCard.classList.toggle('open', !!activeDN && dnItemsExpanded);
-        if (!activeDN) {
+        if (itemsCard) itemsCard.classList.toggle('open', showDeliveryUI && dnItemsExpanded);
+        if (!showDeliveryUI) {
             if (container) container.innerHTML = '';
             if (dnIdEl) dnIdEl.innerText = 'Delivery Note';
             if (customerEl) customerEl.innerText = 'Scan DN to start';
@@ -2629,7 +2630,8 @@
     }
 
     function toggleChecklist(force) {
-        if (!activeDN && force === true) return;
+        if ((!activeDN || stockMode !== 'Delivery') && force === true) return;
+        if (!activeDN || stockMode !== 'Delivery') return;
         if (typeof force === 'boolean') dnItemsExpanded = force;
         else dnItemsExpanded = !dnItemsExpanded;
         renderChecklist();
@@ -2685,13 +2687,7 @@
     function updateStockMode() {
         const modeEl = document.getElementById('stock-mode');
         if (!modeEl) return;
-        
-        // Smart Prompt: If a Delivery Note is active, suggest 'Delivery' 
-        if (activeDN && stockMode !== 'Delivery' && !localStorage.getItem('mode_override')) {
-            // We only force it if they haven't explicitly chosen another mode during this session
-            modeEl.value = 'Delivery';
-        }
-        
+
         modeEl.disabled = false; // Never lock the user out of their tools
         stockMode = modeEl.value;
         const nextSummaryScope = getSummaryScope(stockMode);
