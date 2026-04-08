@@ -1372,6 +1372,7 @@
     let scannerRecoveryTimer = null;
     let scannerWatchdog = null;
     let lastScanAt = 0;
+    let lastScannedValue = '';
     let lastDecodeTickAt = 0;
     let lastVideoFrameTime = 0;
     let scansSinceRestart = 0;
@@ -1536,7 +1537,12 @@
     }
     async function onScanSuccess(decodedText) {
         if (isScanningBlocked || scanRequestInFlight) return;
-        lastScanAt = Date.now();
+        const scanNow = Date.now();
+        const isSameCode = decodedText === lastScannedValue;
+        const repeatCooldown = isSameCode ? 1800 : 1200;
+        if (scanNow - lastScanAt < repeatCooldown) return;
+        lastScanAt = scanNow;
+        lastScannedValue = decodedText;
         lastDecodeTickAt = lastScanAt;
         scansSinceRestart += 1;
         setScannerHealth('SCANNING ACTIVE');
@@ -1694,7 +1700,7 @@
             setTimeout(() => {
                 isScanningBlocked = false;
                 scanRequestInFlight = false;
-            }, 700);
+            }, 1200);
         }
     }
 
