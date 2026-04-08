@@ -1,3 +1,45 @@
+function apply_item_row_colors(frm) {
+	const statusColors = {
+		'In Stock': '#e8f7ee',
+		'Dispatched': '#eef4ff',
+		'Cancelled': '#fdebec',
+		'Draft': '#f7f8fa',
+		'Generated': '#fff8e6'
+	};
+	(frm.fields_dict.items.grid.grid_rows || []).forEach((gridRow) => {
+		if (!gridRow || !gridRow.doc || !gridRow.row) {
+			return;
+		}
+		const background = statusColors[gridRow.doc.status] || '#ffffff';
+		$(gridRow.row).css('background-color', background);
+	});
+}
+
+function render_items_qty_total(frm) {
+	const totalQty = (frm.doc.items || []).reduce((sum, item) => sum + flt(item.qty || 0), 0);
+	const wrapper = frm.fields_dict.items.grid.wrapper;
+	wrapper.find('.batch-items-total-row').remove();
+
+	const totalRow = $(`
+		<div class="batch-items-total-row" style="
+			display:flex;
+			align-items:center;
+			justify-content:flex-end;
+			gap:12px;
+			padding:10px 18px 12px;
+			border-top:1px solid var(--border-color);
+			background:#fafbfc;
+			font-weight:700;
+			color:var(--text-color);
+		">
+			<span style="opacity:.75;">Total Qty</span>
+			<span>${format_number(totalQty)}</span>
+		</div>
+	`);
+
+	wrapper.find('.grid-body').after(totalRow);
+}
+
 frappe.ui.form.on('Batch QR Maker', {
 	refresh: function(frm) {
 		const scanned = cint(frm.doc.scanned_cartons || 0);
@@ -64,19 +106,8 @@ frappe.ui.form.on('Batch QR Maker', {
 			}
 		}
 
-		// Table Styling
-		const statusColors = {
-			'In Stock': '#e8f7ee',
-			'Dispatched': '#eef4ff',
-			'Cancelled': '#fdebec',
-			'Draft': '#f7f8fa',
-			'Generated': '#fff8e6'
-		};
-		frm.fields_dict['items'].grid.wrapper.find('.grid-row').each(function(i, row) {
-			const child = frm.doc.items[i];
-			const background = child ? (statusColors[child.status] || '#ffffff') : '#ffffff';
-			$(row).css('background-color', background);
-		});
+		apply_item_row_colors(frm);
+		render_items_qty_total(frm);
 
 		if (frm.doc.docstatus > 0) {
 			frm.set_intro(
@@ -96,5 +127,12 @@ frappe.ui.form.on('Batch QR Maker', {
 		if (frm.doc.docstatus === 1) {
 			frm.print_preview.print_format = 'Batch Labels A5';
 		}
+	}
+});
+
+frappe.ui.form.on('Batch QR Maker Item', {
+	form_render: function(frm) {
+		apply_item_row_colors(frm);
+		render_items_qty_total(frm);
 	}
 });

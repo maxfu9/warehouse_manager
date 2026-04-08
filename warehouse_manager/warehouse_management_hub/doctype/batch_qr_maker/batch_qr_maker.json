@@ -148,7 +148,8 @@
    "fieldtype": "Table",
    "label": "Cartons",
    "options": "Batch QR Maker Item",
-   "read_only": 1
+   "read_only": 1,
+   "show_total_row": 1
   },
   {
    "description": "Original batch reference when this record is created as an amendment.",
