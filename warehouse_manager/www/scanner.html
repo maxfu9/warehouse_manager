@@ -1172,7 +1172,7 @@
                 </div>
                 <div id="checklist-items"></div>
             </div>
-            <div class="summary-card">
+            <div class="summary-card" id="session-summary-card">
                 <div class="summary-head">
                     <div>
                         <div class="summary-title" id="session-summary-title">Session Summary</div>
@@ -1316,6 +1316,7 @@
     // Truck & Mapping Counters
     let truckTotal = parseInt(localStorage.getItem('scanner_truck_total') || '0');
     let mappingCount = parseInt(localStorage.getItem('scanner_mapping_count') || '0');
+    let summaryScope = localStorage.getItem('scanner_summary_scope') || 'In';
     let activeCustomer = localStorage.getItem('active_customer_id') || '';
     let activeCustomerName = localStorage.getItem('active_customer_name') || '';
     let activeInboundSource = JSON.parse(localStorage.getItem('active_inbound_source') || 'null');
@@ -1381,6 +1382,17 @@
     let lastDecodeTickAt = 0;
     let lastVideoFrameTime = 0;
     let scansSinceRestart = 0;
+
+    function getSummaryScope(mode = stockMode) {
+        return mode === 'In' ? 'In' : 'Out';
+    }
+
+    function resetSummaryState() {
+        truckTotal = 0;
+        sessionItems = {};
+        localStorage.removeItem('scanner_truck_total');
+        localStorage.removeItem('scanner_session_items');
+    }
 
     function setScannerHealth(label, tone = '') {
         const el = document.getElementById('scanner-health');
@@ -2466,15 +2478,19 @@
         const statsEl = document.getElementById('truck-stats');
         const titleEl = document.getElementById('session-summary-title');
         const subtitleEl = document.getElementById('session-summary-subtitle');
+        const cardEl = document.getElementById('session-summary-card');
         const itemCodes = Object.keys(sessionItems);
         const totalScans = itemCodes.reduce((sum, code) => sum + (sessionItems[code].scans || 0), 0);
         const isInbound = stockMode === 'In';
+        const isDelivery = stockMode === 'Delivery';
+
+        if (cardEl) cardEl.style.display = 'block';
 
         if (titleEl) {
-            titleEl.innerText = isInbound ? 'Lot Summary' : 'Session Summary';
+            titleEl.innerText = isInbound ? 'Lot Summary' : (isDelivery ? 'Dispatch Summary' : 'Session Summary');
         }
         if (subtitleEl) {
-            subtitleEl.innerText = isInbound ? 'Live totals for the current lot' : 'Live totals for the current session';
+            subtitleEl.innerText = isInbound ? 'Live totals for the current lot' : (isDelivery ? 'Live totals across the current dispatch run' : 'Live totals for the current session');
         }
 
         if (statsEl) {
@@ -2491,7 +2507,7 @@
         }
 
         if (itemCodes.length === 0) {
-            el.innerHTML = `<div class="history-empty">${isInbound ? 'Lot is empty right now' : 'No cartons in the session yet'}</div>`;
+            el.innerHTML = `<div class="history-empty">${isInbound ? 'Lot is empty right now' : (isDelivery ? 'No cartons picked in this dispatch yet' : 'No cartons in the session yet')}</div>`;
             return;
         }
         
@@ -2678,6 +2694,12 @@
         
         modeEl.disabled = false; // Never lock the user out of their tools
         stockMode = modeEl.value;
+        const nextSummaryScope = getSummaryScope(stockMode);
+        if (summaryScope !== nextSummaryScope) {
+            resetSummaryState();
+            summaryScope = nextSummaryScope;
+            localStorage.setItem('scanner_summary_scope', summaryScope);
+        }
 
         const modeLabel = (stockMode === 'Delivery') ? 'PICK & SCAN' : (stockMode === 'In' ? 'INBOUND' : 'CUSTOMER DISPATCH');
         const modeDisplay = document.getElementById('mode-display');
@@ -2801,6 +2823,8 @@
                 stockMode = localStorage.getItem('scanner_mode') || 'In';
                 if (stockMode === 'Delivery') stockMode = 'In'; // Force reset if no DN
             }
+            summaryScope = getSummaryScope(stockMode);
+            localStorage.setItem('scanner_summary_scope', summaryScope);
             
             const modeEl = document.getElementById('stock-mode');
             if (modeEl) modeEl.value = stockMode;
