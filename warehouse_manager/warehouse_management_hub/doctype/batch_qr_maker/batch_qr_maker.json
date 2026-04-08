@@ -132,7 +132,7 @@
   {
    "fieldname": "cancelled_cartons",
    "fieldtype": "Int",
-   "description": "Cartons cancelled or removed before reaching stock.",
+   "description": "Labels cancelled or removed before reaching stock.",
    "label": "Cancelled",
    "read_only": 1,
    "allow_on_submit": 1
