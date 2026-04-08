@@ -150,16 +150,25 @@
         /* Checkbox & History */
         #checklist-panel {
             position: absolute; bottom: 85px; left: 16px; right: 16px;
-            max-height: 40vh; background: var(--card);
+            max-height: 62vh; background: var(--card);
             backdrop-filter: blur(20px); border-radius: 20px;
-            padding: 16px; overflow-y: auto; z-index: 50;
+            padding: 16px; overflow: hidden; z-index: 50;
             transform: translateY(calc(100% + 100px)); 
             transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid rgba(255,255,255,0.1);
             box-shadow: 0 -10px 40px rgba(0,0,0,0.4);
             visibility: hidden;
+            display: flex;
+            flex-direction: column;
         }
         #checklist-panel.open { transform: translateY(0); visibility: visible; }
+        #checklist-items {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 4px;
+            margin-right: -4px;
+        }
 
         #history-panel {
             flex: 1; background: var(--bg);
