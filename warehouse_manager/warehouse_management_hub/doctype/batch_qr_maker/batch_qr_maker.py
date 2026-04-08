@@ -101,6 +101,7 @@ class BatchQRMaker(Document):
 				scanned += 1
 			elif current_status == "Dispatched":
 				item.status = "Dispatched"
+				scanned += 1
 				dispatched += 1
 				
 		self.status = "Closed"
