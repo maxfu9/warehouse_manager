@@ -72,7 +72,7 @@
    "fieldname": "source_type",
    "fieldtype": "Select",
    "label": "Source Type",
-   "options": "\nProduction\nPurchase"
+   "options": "\nProduction\nPurchase\nReturn Stock"
   },
   {
    "fieldname": "supplier",
