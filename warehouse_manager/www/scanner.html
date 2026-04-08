@@ -150,25 +150,39 @@
 
         /* Checkbox & History */
         #checklist-panel {
-            position: absolute; bottom: 85px; left: 16px; right: 16px;
-            max-height: 62vh; background: var(--card);
-            backdrop-filter: blur(20px); border-radius: 20px;
-            padding: 16px; overflow: hidden; z-index: 50;
-            transform: translateY(calc(100% + 100px)); 
-            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 -10px 40px rgba(0,0,0,0.4);
-            visibility: hidden;
-            display: flex;
-            flex-direction: column;
+            display: none;
         }
-        #checklist-panel.open { transform: translateY(0); visibility: visible; }
+        #checklist-panel.open {
+            display: block;
+        }
+        .dn-session-body {
+            margin-top: 14px;
+        }
+        #checklist-panel:not(.open) .dn-session-body {
+            display: none;
+        }
         #checklist-items {
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            padding-right: 4px;
-            margin-right: -4px;
+            display: grid;
+            gap: 10px;
+        }
+        .dn-session-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .dn-session-btn {
+            border: none;
+            background: rgba(255,255,255,0.05);
+            color: #cbd5e1;
+            padding: 9px 14px;
+            border-radius: 999px;
+            font-size: 0.74rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+        }
+        .dn-session-btn.danger {
+            color: #fca5a5;
+            background: rgba(239,68,68,0.08);
         }
 
         #history-panel {
@@ -891,7 +905,7 @@
     <div id="completion-items-list" style="width: 80%; max-height: 250px; overflow-y: auto; background: rgba(0,0,0,0.1); border-radius: 12px; padding: 15px; margin-bottom: 20px;"></div>
 
     <button class="wizard-btn" style="background: white; color: var(--success); width: 250px; margin-top: 20px;" onclick="resetDeliveryScanner()">
-        START NEXT DELIVERY
+        SCAN NEXT DN
     </button>
 </div>
 
@@ -958,7 +972,7 @@
                 <div class="mode-indicator" id="mode-display" onclick="toggleSettings()">INBOUND</div>
                 <div class="session-badge" id="session-display" style="display: none;" onclick="confirmResetSession()">LOT: 0</div>
             </div>
-            <div class="dn-badge" id="active-dn-display" style="display: none; cursor: pointer;" onclick="toggleChecklist(true)">FIX DN</div>
+            <div class="dn-badge" id="active-dn-display" style="display: none;">FIX DN</div>
         </div>
         <div class="header-bottom" id="header-entity-row" onclick="promptEntityAction()">
             <div class="entity-badge">
@@ -1051,22 +1065,24 @@
         <div id="status-msg" style="font-size: 0.9rem; color: #cbd5e1;">Item verified successfully</div>
     </div>
 
-    <div id="checklist-panel">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-            <div>
-                <h3 id="checklist-customer" style="margin: 0; font-size: 1rem; color: var(--text); text-transform: uppercase;">SCAN DN TO START</h3>
-                <div id="checklist-stats" style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">0 Items Total</div>
-            </div>
-            <div style="display: flex; gap: 15px;">
-                <button onclick="unloadDN()" style="background: none; border: none; color: #ef4444; font-weight: 600; font-size: 0.85rem;">UNLOAD</button>
-                <button onclick="toggleChecklist()" style="background: none; border: none; color: var(--primary); font-weight: 600; font-size: 0.85rem;">HIDE</button>
-            </div>
-        </div>
-        <div id="checklist-items"></div>
-    </div>
-
     <div id="history-panel">
         <div class="summary-shell">
+            <div class="summary-card" id="checklist-panel">
+                <div class="summary-head">
+                    <div>
+                        <div class="summary-title" id="checklist-dn-id">Delivery Note</div>
+                        <div class="summary-subtitle" id="checklist-customer">Scan DN to start</div>
+                    </div>
+                    <div class="dn-session-actions">
+                        <button class="dn-session-btn" id="checklist-toggle-btn" onclick="toggleChecklist()">VIEW ITEMS</button>
+                        <button class="dn-session-btn danger" onclick="clearDN()">CLEAR DN</button>
+                    </div>
+                </div>
+                <div id="checklist-stats" style="font-size: 0.8rem; color: #94a3b8; margin-top: 2px;">0 Items Total</div>
+                <div class="dn-session-body">
+                    <div id="checklist-items"></div>
+                </div>
+            </div>
             <div class="summary-card">
                 <div class="summary-head">
                     <div>
@@ -1226,6 +1242,7 @@
     let pendingScanData = null;
     let autoConfirmEnabled = localStorage.getItem('scanner_auto_confirm') === 'true';
     let recentStripExpanded = localStorage.getItem('scanner_recent_expanded') === 'true';
+    let dnItemsExpanded = false;
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playSound(type) {
@@ -1694,13 +1711,15 @@
                         localStorage.setItem('scanner_dn_total_count', dnTotalCount);
 
                         const custEl = document.getElementById('checklist-customer');
+                        const dnEl = document.getElementById('checklist-dn-id');
                         const statsEl = document.getElementById('checklist-stats');
+                        if (dnEl) dnEl.innerText = data.dn_id || 'Delivery Note';
                         if (custEl) custEl.innerText = data.customer || 'NO CUSTOMER FOUND';
                         if (statsEl) statsEl.innerText = `${dnTotalCount} Items Total`;
                         
                         renderSessionBadges();
                         renderChecklist();
-                        toggleChecklist(true);
+                        toggleChecklist(false);
                         showStatus("DN READY", data.dn_id, 'success');
                         addToHistory(data.dn_id, "DN Loaded", 'success', 'Note');
                         playSound('success'); vibrate('success');
@@ -1898,11 +1917,13 @@
             if (listEl) {
                 listEl.innerHTML = Object.keys(dnChecklist).map(code => {
                     const it = dnChecklist[code];
-                    const label = it.current === 1 ? 'Carton' : 'Cartons';
                     return `
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
-                            <div style="color: white; font-size: 0.95rem; font-weight: 500; line-height: 1.2; padding-right: 15px;">${it.name || code}</div>
-                            <div style="color: #10b981; font-weight: 800; font-size: 0.95rem; white-space: nowrap;">${it.current} ${label}</div>
+                        <div style="padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
+                            <div style="color: white; font-size: 0.95rem; font-weight: 700; line-height: 1.2;">${it.name || code}</div>
+                            <div style="display:flex; justify-content:space-between; gap:12px; margin-top:8px; color:#cbd5e1; font-size:0.82rem;">
+                                <div>DN Qty: <strong style="color:white;">${it.target}</strong></div>
+                                <div>Scanned Qty: <strong style="color:#10b981;">${it.current}</strong></div>
+                            </div>
                         </div>
                     `;
                 }).join('');
@@ -1944,7 +1965,8 @@
         localStorage.removeItem('scanner_dn_match_count');
         localStorage.removeItem('scanner_dn_total_count');
 
-        document.getElementById('checklist-customer').innerText = 'SCAN DN TO START';
+        document.getElementById('checklist-dn-id').innerText = 'Delivery Note';
+        document.getElementById('checklist-customer').innerText = 'Scan DN to start';
         document.getElementById('checklist-stats').innerText = '0 Items Total';
         updateDNBadge();
         document.getElementById('delivery-completion-overlay').style.display = 'none';
@@ -1952,10 +1974,10 @@
         renderChecklist();
         renderTruckSummary();
         
-        // AUTO-RESET to Inbound mode after finishing a shipment
-        stockMode = 'In';
+        // Keep the scanner ready for the next delivery note
+        stockMode = 'Delivery';
         const modeEl = document.getElementById('stock-mode');
-        if (modeEl) modeEl.value = 'In';
+        if (modeEl) modeEl.value = 'Delivery';
         updateStockMode(); 
         
         showStatus("READY", "Scan next Delivery Note", 'success');
@@ -2300,29 +2322,7 @@
             if (stockMode === 'Out' || stockMode === 'Delivery') {
                 if (entityIconEl) entityIconEl.innerText = '🚚';
                 
-                // DN Alert or Info (only for Delivery mode)
-                if (stockMode === 'Delivery' && dnEl) {
-                    dnEl.style.display = 'block';
-                    if (!activeDN) {
-                        dnEl.innerText = 'FIX DN';
-                        dnEl.classList.add('pulse-alert');
-                    } else {
-                        const scannedUnits = dnMatchCount || 0;
-                        const totalUnits = dnTotalCount || 0;
-                        dnEl.innerText = `${activeDN.dn_id} | ${scannedUnits} / ${totalUnits}`;
-                        dnEl.classList.remove('pulse-alert');
-                        
-                        if (scannedUnits >= totalUnits && totalUnits > 0) {
-                            dnEl.style.background = 'var(--success)';
-                            dnEl.style.color = 'white';
-                        } else {
-                            dnEl.style.background = 'rgba(13,110,253,0.1)';
-                            dnEl.style.color = 'var(--primary)';
-                        }
-                    }
-                } else if (dnEl) {
-                    dnEl.style.display = 'none';
-                }
+                if (dnEl) dnEl.style.display = 'none';
 
                 if (entityNameEl) {
                     if (!activeCustomer) {
@@ -2439,7 +2439,7 @@
             return;
         }
         
-        el.style.display = 'flex';
+        el.style.display = 'none';
         el.innerText = `${activeDN.dn_id} [${dnMatchCount} / ${dnTotalCount}]`;
     }
 
@@ -2457,7 +2457,23 @@
     function renderChecklist() {
         const container = document.getElementById('checklist-items');
         if (!container) return;
+        const panel = document.getElementById('checklist-panel');
+        const toggleBtn = document.getElementById('checklist-toggle-btn');
+        const dnIdEl = document.getElementById('checklist-dn-id');
+        const customerEl = document.getElementById('checklist-customer');
         const statsEl = document.getElementById('checklist-stats');
+        if (panel) panel.style.display = activeDN ? 'block' : 'none';
+        if (toggleBtn) toggleBtn.innerText = dnItemsExpanded ? 'HIDE ITEMS' : 'VIEW ITEMS';
+        if (panel) panel.classList.toggle('open', !!activeDN && dnItemsExpanded);
+        if (!activeDN) {
+            if (container) container.innerHTML = '';
+            if (dnIdEl) dnIdEl.innerText = 'Delivery Note';
+            if (customerEl) customerEl.innerText = 'Scan DN to start';
+            if (statsEl) statsEl.innerText = '0 Items Total';
+            return;
+        }
+        if (dnIdEl) dnIdEl.innerText = activeDN.dn_id || 'Delivery Note';
+        if (customerEl) customerEl.innerText = activeDN.customer || activeCustomerName || 'No customer found';
         if (statsEl && activeDN) {
             const remaining = Math.max((dnTotalCount || 0) - (dnMatchCount || 0), 0);
             const percent = dnTotalCount ? Math.round((dnMatchCount / dnTotalCount) * 100) : 0;
@@ -2484,25 +2500,26 @@
     }
 
     function toggleChecklist(force) {
-        if (!activeDN && force === true) return; 
-        const p = document.getElementById('checklist-panel');
-        if (force !== undefined) p.classList.toggle('open', force);
-        else p.classList.toggle('open');
+        if (!activeDN && force === true) return;
+        if (typeof force === 'boolean') dnItemsExpanded = force;
+        else dnItemsExpanded = !dnItemsExpanded;
+        renderChecklist();
     }
 
-    function unloadDN() {
+    function clearDN() {
         if (!activeDN && !activeCustomer) {
-            showStatus("CLEAN", "No active session to unload", 'info');
+            showStatus("CLEAN", "No active delivery note", 'info');
             return;
         }
-        if (confirm(`Unload current session and discard progress?`)) {
+        if (confirm(`Clear current DN and discard its progress?`)) {
             activeDN = null;
             dnChecklist = {};
             dnMatchCount = 0;
             dnTotalCount = 0;
+            dnItemsExpanded = false;
             activeCustomer = '';
             activeCustomerName = '';
-            truckTotal = 0; // Reset session totals too on explicit unload
+            truckTotal = 0;
             mappingCount = 0;
             sessionItems = {};
             outboundSessionCartons = [];
@@ -2522,7 +2539,7 @@
             renderChecklist();
             renderTruckSummary();
             toggleChecklist(false);
-            showStatus("UNLOADED", "Session discarded", 'warning');
+            showStatus("DN CLEARED", "Current delivery note removed", 'warning');
         }
     }
 
@@ -2561,7 +2578,7 @@
         const outboundActions = document.getElementById('outbound-session-actions');
 
         if (stockMode === 'Delivery') {
-            if (dnBadge) dnBadge.style.display = 'flex';
+            if (dnBadge) dnBadge.style.display = 'none';
             if (sourceCont) sourceCont.style.display = 'none';
             if (suppCont) suppCont.style.display = 'none';
             if (custCont) custCont.style.display = 'none';
@@ -2665,9 +2682,6 @@
                 dnChecklist = JSON.parse(localStorage.getItem('scanner_dn_checklist') || '{}');
                 dnMatchCount = parseInt(localStorage.getItem('scanner_dn_match_count') || '0');
                 dnTotalCount = parseInt(localStorage.getItem('scanner_dn_total_count') || '0');
-                
-                document.getElementById('checklist-customer').innerText = activeDN.customer || 'NO CUSTOMER FOUND';
-                document.getElementById('checklist-stats').innerText = `${dnTotalCount} Items Total`;
                 renderChecklist();
                 updateDNBadge();
             } else {
