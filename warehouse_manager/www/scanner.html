@@ -2544,11 +2544,12 @@
         const ov = document.getElementById('status-overlay');
         const t = document.getElementById('status-title');
         const m = document.getElementById('status-msg');
+        const duration = type === 'success' ? 2800 : (type === 'warning' ? 3500 : 4000);
         ov.style.background = type === 'success' ? 'rgba(16, 185, 129, 0.9)' : 
                              type === 'warning' ? 'rgba(245, 158, 11, 0.9)' : 'rgba(239, 68, 68, 0.9)';
         t.innerText = title; m.innerText = msg;
         ov.classList.add('show');
-        setTimeout(() => ov.classList.remove('show'), 2000);
+        setTimeout(() => ov.classList.remove('show'), duration);
     }
 
     function renderChecklist() {
