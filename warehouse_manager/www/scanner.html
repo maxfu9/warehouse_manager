@@ -1070,8 +1070,8 @@
             <div class="summary-card">
                 <div class="summary-head">
                     <div>
-                        <div class="summary-title">Truck Summary</div>
-                        <div class="summary-subtitle">Live session totals for the current load</div>
+                        <div class="summary-title" id="session-summary-title">Session Summary</div>
+                        <div class="summary-subtitle" id="session-summary-subtitle">Live totals for the current session</div>
                     </div>
                     <button class="summary-clear-btn" onclick="clearHistory()">CLEAR LIST</button>
                 </div>
@@ -2362,28 +2362,38 @@
     function renderTruckSummary() {
         const el = document.getElementById('truck-summary');
         const statsEl = document.getElementById('truck-stats');
+        const titleEl = document.getElementById('session-summary-title');
+        const subtitleEl = document.getElementById('session-summary-subtitle');
         const itemCodes = Object.keys(sessionItems);
         const totalScans = itemCodes.reduce((sum, code) => sum + (sessionItems[code].scans || 0), 0);
+        const isInbound = stockMode === 'In';
+
+        if (titleEl) {
+            titleEl.innerText = isInbound ? 'Lot Summary' : 'Session Summary';
+        }
+        if (subtitleEl) {
+            subtitleEl.innerText = isInbound ? 'Live totals for the current lot' : 'Live totals for the current session';
+        }
 
         if (statsEl) {
             statsEl.innerHTML = `
                 <div class="summary-stat">
-                    <div class="summary-stat-value">${truckTotal}</div>
-                    <div class="summary-stat-label">Truck Total</div>
+                    <div class="summary-stat-value">${totalScans || 0}</div>
+                    <div class="summary-stat-label">CTN</div>
                 </div>
                 <div class="summary-stat">
                     <div class="summary-stat-value">${itemCodes.length}</div>
                     <div class="summary-stat-label">Unique Items</div>
                 </div>
                 <div class="summary-stat">
-                    <div class="summary-stat-value">${totalScans || 0}</div>
-                    <div class="summary-stat-label">CTN</div>
+                    <div class="summary-stat-value">${itemCodes.reduce((sum, code) => sum + (Number(sessionItems[code].qty) || 0), 0)}</div>
+                    <div class="summary-stat-label">Total Qty</div>
                 </div>
             `;
         }
 
         if (itemCodes.length === 0) {
-            el.innerHTML = '<div class="history-empty">Truck is empty right now</div>';
+            el.innerHTML = `<div class="history-empty">${isInbound ? 'Lot is empty right now' : 'No cartons in the session yet'}</div>`;
             return;
         }
         
