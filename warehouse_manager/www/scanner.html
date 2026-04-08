@@ -1262,6 +1262,7 @@
     }
 
     let isScanningBlocked = false;
+    let scanRequestInFlight = false;
     let isTorchOn = false;
     let scannerState = 'idle';
     let scannerRecoveryTimer = null;
@@ -1430,32 +1431,32 @@
             });
     }
     async function onScanSuccess(decodedText) {
-        if (isScanningBlocked) return;
+        if (isScanningBlocked || scanRequestInFlight) return;
         lastScanAt = Date.now();
         lastDecodeTickAt = lastScanAt;
         scansSinceRestart += 1;
         setScannerHealth('SCANNING ACTIVE');
         isScanningBlocked = true;
-        setTimeout(() => { isScanningBlocked = false; }, 700);
+        scanRequestInFlight = true;
         
-        // 1. Identity Detection
-        const isDN = /DN-26\d+/i.test(decodedText) || 
-                     /(?:delivery-note|Delivery Note|Delivery%20Note)/i.test(decodedText.toLowerCase());
-        const isStaff = decodedText.startsWith('msqr1.');
-
-        // 2. Routing
-        if (isStaff) {
-            handleAttendance(decodedText);
-            return;
-        }
-
-        if (isDN || stockMode === 'Delivery') {
-            handleDeliveryVerification(decodedText);
-            return;
-        }
-
-        // 3. Intelligent Workflow (Inbound vs Outbound)
         try {
+            // 1. Identity Detection
+            const isDN = /DN-26\d+/i.test(decodedText) || 
+                         /(?:delivery-note|Delivery Note|Delivery%20Note)/i.test(decodedText.toLowerCase());
+            const isStaff = decodedText.startsWith('msqr1.');
+
+            // 2. Routing
+            if (isStaff) {
+                handleAttendance(decodedText);
+                return;
+            }
+
+            if (isDN || stockMode === 'Delivery') {
+                handleDeliveryVerification(decodedText);
+                return;
+            }
+
+            // 3. Intelligent Workflow (Inbound vs Outbound)
             showStatus("CHECKING", "Fetching carton status...", 'warning');
             const passcode = localStorage.getItem('scanner_passcode');
             if (!passcode) {
@@ -1528,7 +1529,14 @@
             if (status.move_type === 'Out') {
                 if (activeCustomer) {
                     // AUTO-LOG for Outbound if customer is already set
-                    handleStockLog(decodedText, (res) => {
+                    await handleStockLog(decodedText, (res, error) => {
+                        if (!res || res.status !== "success") {
+                            const errorMsg = error || (res ? res.message : "Dispatch failed");
+                            showStatus("BLOCK", errorMsg, 'error');
+                            addBlockedScan(status.carton_no || decodedText, errorMsg, stockMode);
+                            playSound('blocked'); vibrate('error');
+                            return;
+                        }
                         updateSessionStats(res);
                         showOutboundScanCard(res.item_name, res.carton_no, activeDN ? `${dnMatchCount} / ${dnTotalCount}` : `${outboundSessionCartons.length + 1} dispatched`, activeDN ? activeDN.dn_id : activeCustomerName);
                         playSound('success'); vibrate('success');
@@ -1550,7 +1558,14 @@
                             supplier: inboundSelection.supplier || null,
                             customer: inboundSelection.customer || null
                         };
-                        handleStockLog(decodedText, (res) => {
+                        await handleStockLog(decodedText, (res, error) => {
+                            if (!res || res.status !== "success") {
+                                const errorMsg = error || (res ? res.message : "Inbound failed");
+                                showStatus("BLOCK", errorMsg, 'error');
+                                addBlockedScan(status.carton_no || decodedText, errorMsg, stockMode);
+                                playSound('blocked'); vibrate('error');
+                                return;
+                            }
                             updateSessionStats(res);
                             showInboundScanCard(res.item_name, res.carton_no, res.qty, res.uom);
                             playSound('success'); vibrate('success');
@@ -1571,6 +1586,11 @@
             const errorMsg = e.message || "Unknown Verification Error";
             showStatus("ERROR", errorMsg, 'error');
             playSound('error'); vibrate('error');
+        } finally {
+            setTimeout(() => {
+                isScanningBlocked = false;
+                scanRequestInFlight = false;
+            }, 700);
         }
     }
 
