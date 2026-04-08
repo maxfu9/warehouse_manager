@@ -177,25 +177,63 @@
             gap: 10px;
             align-items: center;
         }
+        .dn-id-label {
+            font-size: 0.76rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            margin-bottom: 6px;
+        }
         .dn-customer-name {
-            font-size: 1.1rem;
+            font-size: 1.32rem;
             font-weight: 800;
             color: #f8fafc;
-            line-height: 1.2;
+            line-height: 1.15;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
         }
         .dn-session-btn {
             border: none;
             background: rgba(255,255,255,0.05);
             color: #cbd5e1;
-            padding: 9px 14px;
+            padding: 8px 12px;
             border-radius: 999px;
-            font-size: 0.74rem;
+            font-size: 0.68rem;
             font-weight: 800;
             letter-spacing: 0.04em;
         }
         .dn-session-btn.danger {
-            color: #fca5a5;
-            background: rgba(239,68,68,0.08);
+            color: #fda4af;
+            background: rgba(244,63,94,0.08);
+            border: 1px solid rgba(244,63,94,0.12);
+        }
+        .dn-progress-stats {
+            margin-top: 14px;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .dn-progress-stat {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 14px;
+            padding: 10px 12px;
+        }
+        .dn-progress-value {
+            font-size: 0.98rem;
+            font-weight: 800;
+            color: #f8fafc;
+        }
+        .dn-progress-label {
+            margin-top: 2px;
+            font-size: 0.66rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #94a3b8;
         }
         .dn-progress-rail {
             margin-top: 14px;
@@ -1098,7 +1136,7 @@
             <div class="summary-card" id="checklist-panel">
                 <div class="summary-head">
                     <div>
-                        <div class="summary-title" id="checklist-dn-id">Delivery Note</div>
+                        <div class="dn-id-label" id="checklist-dn-id">Delivery Note</div>
                         <div class="dn-customer-name" id="checklist-customer">Scan DN to start</div>
                     </div>
                     <div class="dn-session-actions">
@@ -1106,7 +1144,7 @@
                         <button class="dn-session-btn danger" onclick="clearDN()">CLEAR DN</button>
                     </div>
                 </div>
-                <div id="checklist-stats" style="font-size: 0.8rem; color: #94a3b8; margin-top: 2px;">0 Items Total</div>
+                <div class="dn-progress-stats" id="checklist-stats"></div>
                 <div class="dn-progress-rail">
                     <div class="dn-progress-bar" id="checklist-progress-bar"></div>
                 </div>
@@ -2508,7 +2546,11 @@
             if (container) container.innerHTML = '';
             if (dnIdEl) dnIdEl.innerText = 'Delivery Note';
             if (customerEl) customerEl.innerText = 'Scan DN to start';
-            if (statsEl) statsEl.innerText = '0 Items Total';
+            if (statsEl) statsEl.innerHTML = `
+                <div class="dn-progress-stat"><div class="dn-progress-value">0/0</div><div class="dn-progress-label">Scanned</div></div>
+                <div class="dn-progress-stat"><div class="dn-progress-value">0</div><div class="dn-progress-label">Remaining</div></div>
+                <div class="dn-progress-stat"><div class="dn-progress-value">0%</div><div class="dn-progress-label">Complete</div></div>
+            `;
             if (progressBarEl) progressBarEl.style.width = '0%';
             return;
         }
@@ -2517,7 +2559,11 @@
         if (statsEl && activeDN) {
             const remaining = Math.max((dnTotalCount || 0) - (dnMatchCount || 0), 0);
             const percent = dnTotalCount ? Math.round((dnMatchCount / dnTotalCount) * 100) : 0;
-            statsEl.innerText = `${dnMatchCount} / ${dnTotalCount} scanned • ${remaining} remaining • ${percent}%`;
+            statsEl.innerHTML = `
+                <div class="dn-progress-stat"><div class="dn-progress-value">${dnMatchCount}/${dnTotalCount}</div><div class="dn-progress-label">Scanned</div></div>
+                <div class="dn-progress-stat"><div class="dn-progress-value">${remaining}</div><div class="dn-progress-label">Remaining</div></div>
+                <div class="dn-progress-stat"><div class="dn-progress-value">${percent}%</div><div class="dn-progress-label">Complete</div></div>
+            `;
             if (progressBarEl) progressBarEl.style.width = `${percent}%`;
         }
         
