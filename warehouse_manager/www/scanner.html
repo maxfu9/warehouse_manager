@@ -2482,10 +2482,6 @@
                     <div class="summary-stat-value">${itemCodes.length}</div>
                     <div class="summary-stat-label">Unique Items</div>
                 </div>
-                <div class="summary-stat">
-                    <div class="summary-stat-value">${itemCodes.reduce((sum, code) => sum + (Number(sessionItems[code].qty) || 0), 0)}</div>
-                    <div class="summary-stat-label">Total Qty</div>
-                </div>
             `;
         }
 
