@@ -20,9 +20,20 @@ add_to_apps_screen = [
 		"name": "warehouse_manager",
 		"logo": "/assets/warehouse_manager/logo.png",
 		"title": "Warehouse Hub",
-		"route": "/scanner",
+		"route": "/desk/europlast-stock-log",
 		"has_permission": "warehouse_manager.api.has_app_permission"
 	}
+]
+
+fixtures = [
+	{
+		"doctype": "Desktop Icon",
+		"filters": [["app", "=", "warehouse_manager"]],
+	},
+	{
+		"doctype": "Workspace Sidebar",
+		"filters": [["app", "=", "warehouse_manager"]],
+	},
 ]
 
 # Includes in <head>
@@ -99,6 +110,8 @@ jinja = {
 
 # before_install = "warehouse_manager.install.before_install"
 # after_install = "warehouse_manager.install.after_install"
+
+after_migrate = "warehouse_manager.setup.setup_v16_desk"
 
 # Uninstallation
 # ------------

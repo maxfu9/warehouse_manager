@@ -1,0 +1,26 @@
+{
+ "app": "warehouse_manager",
+ "bg_color": "blue",
+ "creation": "2026-07-03 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon_type": "App",
+ "idx": 0,
+ "label": "Warehouse Management Hub",
+ "link": "/desk/europlast-stock-log",
+ "link_type": "External",
+ "modified": "2026-07-03 00:00:00.000000",
+ "modified_by": "Administrator",
+ "name": "Warehouse Management Hub",
+ "owner": "Administrator",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Stock Manager"
+  }
+ ],
+ "standard": 1
+}

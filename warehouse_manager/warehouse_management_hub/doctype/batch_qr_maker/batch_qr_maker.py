@@ -44,7 +44,12 @@ class BatchQRMaker(Document):
 		if not self.no_of_cartons or self.no_of_cartons <= 0:
 			frappe.throw(_("Please specify a valid number of cartons"))
 
-		# Clear existing items if any to avoid duplicates on re-click
+		# Clear existing draft carton records before regenerating to avoid
+		# orphaned Carton QR rows when the button is clicked more than once.
+		for row in self.items or []:
+			if row.carton_no and not frappe.db.exists("Stock Log", {"carton_no": row.carton_no}):
+				frappe.delete_doc("Carton QR", row.carton_no, ignore_missing=True, ignore_permissions=True)
+
 		self.items = []
 			
 		for i in range(self.no_of_cartons):
@@ -56,6 +61,9 @@ class BatchQRMaker(Document):
 				"batch": self.name,
 				"date": self.date
 			})
+			# Cartons are generated as children of an authorized Batch QR Maker
+			# action, so the app owns creation even if the user lacks direct
+			# Carton QR create permission.
 			carton.insert(ignore_permissions=True)
 			
 			self.append("items", {
@@ -70,6 +78,8 @@ class BatchQRMaker(Document):
 		self.dispatched_cartons = 0
 		self.cancelled_cartons = 0
 		self.remaining_stock = 0
+		# The method has already passed document permission checks; saving with
+		# ignore_permissions lets it update generated child rows atomically.
 		self.save(ignore_permissions=True)
 		frappe.db.commit()
 		return _("Generated {0} carton records").format(self.no_of_cartons)
@@ -109,6 +119,8 @@ class BatchQRMaker(Document):
 		self.dispatched_cartons = dispatched
 		self.cancelled_cartons = cancelled
 		self.remaining_stock = max(scanned - dispatched, 0)
+		# close_batch performs its own Stock Manager/System Manager gate above
+		# and must update submitted batch counters and child row statuses.
 		self.save(ignore_permissions=True)
 		frappe.db.commit()
 		

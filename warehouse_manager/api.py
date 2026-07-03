@@ -12,11 +12,6 @@ from frappe.utils import cint, flt, now_datetime, time_diff_in_seconds
 from hrms.hr.doctype.employee_checkin.employee_checkin import validate_active_employee
 from urllib.parse import unquote
 import re
-import json
-import hashlib
-import hmac
-import math
-import base64
 
 DEFAULT_SCAN_COOLDOWN_SECONDS = 60
 DEFAULT_ALLOWED_RADIUS_METERS = 100
@@ -49,7 +44,15 @@ def validate_token(token=None):
 	except Exception as e:
 		if "Invalid Passcode" in str(e) or "not set" in str(e):
 			raise e
-		frappe.throw(_("Security Error: {0}").format(str(e)), frappe.PermissionError)
+		frappe.log_error(frappe.get_traceback(), _("Warehouse Scanner Security Error"))
+		frappe.throw(_("Unable to validate scanner passcode"), frappe.PermissionError)
+
+
+def get_public_error_message(error, fallback=None):
+	"""Return scanner-safe messages without exposing unexpected internals."""
+	if isinstance(error, (frappe.ValidationError, frappe.PermissionError)):
+		return frappe.as_unicode(error)
+	return fallback or _("Unable to process scanner request. Please try again or contact support.")
 
 
 def get_scan_cooldown_seconds():
@@ -267,7 +270,11 @@ def get_employee_image(file_path=None, token=None):
 	if not file_path or not file_path.startswith("/private/files/"):
 		frappe.throw(_("Invalid image path"))
 
-	absolute_path = frappe.get_site_path(file_path.lstrip("/"))
+	private_files_path = os.path.abspath(frappe.get_site_path("private", "files"))
+	absolute_path = os.path.abspath(frappe.get_site_path(file_path.lstrip("/")))
+	if os.path.commonpath([private_files_path, absolute_path]) != private_files_path:
+		frappe.throw(_("Invalid image path"))
+
 	if not os.path.exists(absolute_path):
 		frappe.throw(_("Employee image not found"))
 
@@ -328,7 +335,7 @@ def mark_attendance(scan_data=None, employee_id=None, log_type=None, token=None,
 		frappe.log_error(frappe.get_traceback(), _("Warehouse Management Hub Error"))
 		return {
 			"status": "error",
-			"message": str(e)
+			"message": get_public_error_message(e)
 		}
 
 
@@ -413,10 +420,10 @@ def get_delivery_note_details(token, dn_id):
 			"items": items
 		}
 	except Exception as e:
-		frappe.log_error(f"DN Details Error: {str(e)}", "Scanner API")
+		frappe.log_error(frappe.get_traceback(), "Scanner Delivery Note Details Error")
 		return {
 			"status": "error",
-			"message": str(e)
+			"message": get_public_error_message(e)
 		}
 
 
@@ -480,7 +487,7 @@ def handle_stock_log(**kwargs):
 			
 			# Fetch all items in this DN (Case-Insensitive list)
 			dn_results = frappe.get_all("Delivery Note Item", filters={"parent": clean_dn}, fields=["item_code"])
-			dn_items = [i.item_code.strip().upper() for i in dn_results]
+			dn_items = [(i.item_code or "").strip().upper() for i in dn_results if i.item_code]
 			
 			# FINAL TRACE: Show exactly what is being matched
 
@@ -490,8 +497,14 @@ def handle_stock_log(**kwargs):
 			
 			# QUANTITY HARD BLOCK: Don't allow more scans than required by DN
 			# We filter by parent and item_code because multiple rows of the same item are summed by Frappe in get_value or logic
-			target_qty = frappe.db.get_value("Delivery Note Item", 
-											  {"parent": clean_dn, "item_code": curr_item}, "qty") or 0
+			target_qty = frappe.db.sql(
+				"""
+				SELECT SUM(qty)
+				FROM `tabDelivery Note Item`
+				WHERE parent = %(delivery_note)s AND item_code = %(item_code)s
+				""",
+				{"delivery_note": clean_dn, "item_code": curr_item},
+			)[0][0] or 0
 			current_scans = frappe.db.count("Stock Log", 
 											 {"delivery_note": clean_dn, "item": curr_item, "type": "Out"})
 			
@@ -532,6 +545,8 @@ def handle_stock_log(**kwargs):
 			"supplier": supplier if (final_type == "In" and source_type == "Purchase") else None,
 			"scan_time": now_datetime()
 		})
+		# Scanner token validation is the trust boundary for guest stock scans;
+		# stock operators do not need Desk create permission for each scan row.
 		doc.insert(ignore_permissions=True)
 
 		# 6. Update or Create Status
@@ -556,6 +571,7 @@ def handle_stock_log(**kwargs):
 				"qty": qty,
 				"creation_type": "Scanner"
 			})
+			# New inbound cartons are created by a validated scanner session.
 			new_c.insert(ignore_permissions=True)
 		
 		# REAL-TIME BATCH SYNC: Propagate to the Batch QR Maker items/counts
@@ -577,7 +593,7 @@ def handle_stock_log(**kwargs):
 		frappe.log_error(frappe.get_traceback(), _("Stock Log Action Error"))
 		return {
 			"status": "error",
-			"message": str(e)
+			"message": get_public_error_message(e)
 		}
 
 
@@ -595,7 +611,12 @@ def log_batch():
 	try:
 		frappe.db.begin()
 		last_res = None
+		last_scan = None
+		if not cartons:
+			frappe.throw(_("No cartons were provided for batch scan"))
+
 		for scan in (cartons or []):
+			last_scan = scan
 			last_res = handle_stock_log(
 				scan_data=scan.get('scan_data') if isinstance(scan, dict) else scan,
 				log_type=mode,
@@ -616,12 +637,12 @@ def log_batch():
 			"item": (last_res.get("item") if last_res else None),
 			"qty": last_res.get("qty") if last_res else 0,
 			"log_type": last_res.get("log_type") if last_res else mode,
-			"carton_no": (last_res.get("carton_no") if last_res else None) or (scan.get('scan_data') if isinstance(scan, dict) else scan)
+			"carton_no": (last_res.get("carton_no") if last_res else None) or (last_scan.get('scan_data') if isinstance(last_scan, dict) else last_scan)
 		}
 	except Exception as e:
 		frappe.db.rollback()
 		frappe.log_error(frappe.get_traceback(), _("Batch Scan Error"))
-		return {"status": "error", "message": str(e)}
+		return {"status": "error", "message": get_public_error_message(e)}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -641,11 +662,14 @@ def revert_stock_log(token, carton_no, delivery_note):
 		frappe.throw(_("No matching scan found to undo for carton {0}").format(carton_no))
 	
 	# Delete Log
+	batch = frappe.db.get_value("Carton QR", carton_no, "batch")
 	frappe.delete_doc("Stock Log", latest_log[0].name, ignore_permissions=True)
 	
 	# Revert Carton Status back to "In Stock"
 	if frappe.db.exists("Carton QR", carton_no):
 		frappe.db.set_value("Carton QR", carton_no, "status", "In Stock")
+	if batch:
+		update_batch_maker_status(batch, carton_no, "In Stock")
 	
 	return {"status": "success", "message": _("Scan undone successfully.")}
 
@@ -750,11 +774,12 @@ def generate_qr_png_data_uri(data, scale=8):
 def has_app_permission():
 	"""
 	Permission check for the Warehouse Hub app in Frappe Desk.
-	Standard Desk users are allowed; Guest users are not.
+	Only warehouse operators and system managers should see the Desk app.
 	"""
 	if frappe.session.user == "Guest":
 		return False
-	return True
+	roles = set(frappe.get_roles())
+	return bool(roles.intersection({"System Manager", "Stock Manager"}))
 
 
 @frappe.whitelist()
@@ -766,6 +791,7 @@ def get_delivery_note_cartons(delivery_note):
 
 	if not frappe.db.exists("Delivery Note", delivery_note):
 		frappe.throw(_("Delivery Note {0} not found").format(delivery_note))
+	frappe.get_doc("Delivery Note", delivery_note).check_permission("read")
 
 	logs = frappe.db.sql(
 		"""
@@ -797,6 +823,39 @@ def get_delivery_note_cartons(delivery_note):
 		"cartons": logs,
 	}
 
+
+def recalculate_batch_maker_counts(batch_id):
+	if not batch_id or not frappe.db.exists("Batch QR Maker", batch_id):
+		return
+
+	counts = frappe.db.sql(
+		"""
+		SELECT
+			SUM(CASE WHEN status IN ('In Stock', 'Dispatched') THEN 1 ELSE 0 END) AS scanned,
+			SUM(CASE WHEN status = 'Dispatched' THEN 1 ELSE 0 END) AS dispatched,
+			SUM(CASE WHEN status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled
+		FROM `tabBatch QR Maker Item`
+		WHERE parent = %(batch_id)s
+		""",
+		{"batch_id": batch_id},
+		as_dict=True,
+	)[0]
+
+	scanned = cint(counts.scanned)
+	dispatched = cint(counts.dispatched)
+	cancelled = cint(counts.cancelled)
+	frappe.db.set_value(
+		"Batch QR Maker",
+		batch_id,
+		{
+			"scanned_cartons": scanned,
+			"dispatched_cartons": dispatched,
+			"cancelled_cartons": cancelled,
+			"remaining_stock": max(scanned - dispatched, 0),
+		},
+		update_modified=True,
+	)
+
 def update_batch_maker_status(batch_id, carton_no, status):
 	"""
 	Propagates status updates from the scanner to the Batch QR Maker dashboard.
@@ -805,40 +864,13 @@ def update_batch_maker_status(batch_id, carton_no, status):
 	if not batch_id: return
 	
 	try:
-		previous_status = frappe.db.get_value(
-			"Batch QR Maker Item",
-			{"parent": batch_id, "carton_no": carton_no},
-			"status",
-		)
-
 		# 1. Update the child table row for this specific carton
 		frappe.db.sql("""
 			UPDATE `tabBatch QR Maker Item` 
 			SET status = %s 
 			WHERE parent = %s AND carton_no = %s
 		""", (status, batch_id, carton_no))
-		
-		scanned_delta = 0
-		dispatched_delta = 0
-
-		if previous_status != "In Stock" and status == "In Stock":
-			scanned_delta += 1
-		if previous_status == "In Stock" and status == "Dispatched":
-			dispatched_delta += 1
-		elif previous_status != "Dispatched" and status == "Dispatched":
-			dispatched_delta += 1
-
-		if scanned_delta or dispatched_delta:
-			frappe.db.sql(
-				"""
-				UPDATE `tabBatch QR Maker`
-				SET scanned_cartons = scanned_cartons + %s,
-					dispatched_cartons = dispatched_cartons + %s,
-					remaining_stock = GREATEST((scanned_cartons + %s) - (dispatched_cartons + %s), 0)
-				WHERE name = %s
-				""",
-				(scanned_delta, dispatched_delta, scanned_delta, dispatched_delta, batch_id),
-			)
+		recalculate_batch_maker_counts(batch_id)
 			
 		# 3. Notify the Desk UI via Websockets
 		frappe.publish_realtime('batch_status_update', {
