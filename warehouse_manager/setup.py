@@ -63,6 +63,8 @@ def setup_v16_desk():
 			"roles": [{"role": role} for role in ROLES],
 		},
 	)
+	frappe.db.set_value("Desktop Icon", APP_TITLE, "label", DESK_TITLE, update_modified=False)
+
 
 	items = [
 		_sidebar_item("Dashboard", "Workspace", WORKSPACE, icon="package"),
@@ -93,3 +95,5 @@ def setup_v16_desk():
 			"items": items,
 		},
 	)
+	frappe.db.set_value("Workspace Sidebar", APP_TITLE, "title", DESK_TITLE, update_modified=False)
+
