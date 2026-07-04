@@ -1,5 +1,5 @@
 app_name = "warehouse_manager"
-app_title = "Warehouse"
+app_title = "Warehouse Hub"
 app_publisher = "Antigravity"
 app_description = "Manager QR Scanner"
 app_email = "antigravity@example.com"
@@ -19,7 +19,7 @@ add_to_apps_screen = [
 	{
 		"name": "warehouse_manager",
 		"logo": "/assets/warehouse_manager/logo.png",
-		"title": "Warehouse",
+		"title": "Warehouse Hub",
 		"route": "/desk/europlast-stock-log",
 		"has_permission": "warehouse_manager.api.has_app_permission"
 	}

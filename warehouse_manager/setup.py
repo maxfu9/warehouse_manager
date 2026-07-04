@@ -3,7 +3,7 @@ import frappe
 
 APP_NAME = "warehouse_manager"
 APP_TITLE = "Warehouse Management Hub"
-DESK_TITLE = "Warehouse"
+DESK_TITLE = "Warehouse Hub"
 WORKSPACE = "EuroPlast Stock Log"
 ROLES = ("System Manager", "Stock Manager")
 
