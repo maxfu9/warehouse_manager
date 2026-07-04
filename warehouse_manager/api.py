@@ -394,9 +394,16 @@ def get_delivery_note_details(token, dn_id):
 			items[item.item_code]["qty"] += flt(item.qty)
 
 		# Use Stock Log (actual scanner logs) to find already processed items
-		processed_logs = frappe.get_all("Stock Log", 
-			filters={"delivery_note": dn_id, "type": "Out"}, 
-			fields=["item", "qty"]
+		processed_logs = frappe.db.sql(
+			"""
+			SELECT item, qty
+			FROM `tabStock Log`
+			WHERE delivery_note = %(delivery_note)s
+				AND type = 'Out'
+				AND IFNULL(movement_status, 'Logged') != 'Cancelled'
+			""",
+			{"delivery_note": dn_id},
+			as_dict=True,
 		)
 		for log in processed_logs:
 			if log.item in items:
@@ -427,14 +434,213 @@ def get_delivery_note_details(token, dn_id):
 		}
 
 
+def normalize_delivery_note_id(delivery_note):
+	clean_dn = unquote((delivery_note or "").strip())
+	if "/" in clean_dn:
+		match = re.search(r"(?:Delivery Note|delivery-note)/([^?/\s]+)", clean_dn, re.IGNORECASE)
+		if match:
+			clean_dn = match.group(1)
+	return clean_dn
+
+
+def get_locked_carton(carton_no):
+	if not carton_no:
+		return None
+
+	rows = frappe.db.sql(
+		"""
+		SELECT name, item, qty, uom, status, batch
+		FROM `tabCarton QR`
+		WHERE name = %(carton_no)s
+		FOR UPDATE
+		""",
+		{"carton_no": carton_no},
+		as_dict=True,
+	)
+	return rows[0] if rows else None
+
+
+def get_delivery_note_item_targets(delivery_note):
+	rows = frappe.db.sql(
+		"""
+		SELECT item_code, SUM(qty) AS qty
+		FROM `tabDelivery Note Item`
+		WHERE parent = %(delivery_note)s
+		GROUP BY item_code
+		""",
+		{"delivery_note": delivery_note},
+		as_dict=True,
+	)
+	return {
+		(row.item_code or "").strip().upper(): flt(row.qty)
+		for row in rows
+		if row.item_code
+	}
+
+
+def get_active_out_scan_count(delivery_note, item_code):
+	if not delivery_note or not item_code:
+		return 0
+
+	return frappe.db.sql(
+		"""
+		SELECT COUNT(*)
+		FROM `tabStock Log`
+		WHERE delivery_note = %(delivery_note)s
+			AND item = %(item_code)s
+			AND type = 'Out'
+			AND IFNULL(movement_status, 'Logged') != 'Cancelled'
+		""",
+		{"delivery_note": delivery_note, "item_code": item_code},
+	)[0][0]
+
+
+def get_stock_status_for_log_type(log_type):
+	return "In Stock" if log_type == "In" else "Dispatched"
+
+
+def sync_carton_status_from_latest_log(carton_no):
+	"""Rebuild Carton QR and batch status from non-cancelled Stock Logs."""
+	carton_no = (carton_no or "").strip()
+	if not carton_no:
+		return None
+
+	latest_log = frappe.db.sql(
+		"""
+		SELECT type
+		FROM `tabStock Log`
+		WHERE carton_no = %(carton_no)s
+			AND IFNULL(movement_status, 'Logged') != 'Cancelled'
+		ORDER BY IFNULL(scan_time, creation) DESC, creation DESC
+		LIMIT 1
+		""",
+		{"carton_no": carton_no},
+		as_dict=True,
+	)
+	new_status = get_stock_status_for_log_type(latest_log[0].type) if latest_log else "Draft"
+
+	if frappe.db.exists("Carton QR", carton_no):
+		frappe.db.set_value("Carton QR", carton_no, "status", new_status, update_modified=True)
+		batch_id = frappe.db.get_value("Carton QR", carton_no, "batch")
+		if batch_id:
+			update_batch_maker_status(batch_id, carton_no, new_status)
+
+	if frappe.db.exists("Batch QR Maker", carton_no) or frappe.db.exists("Carton QR", {"batch": carton_no}):
+		frappe.db.set_value("Carton QR", {"batch": carton_no}, "status", new_status, update_modified=True)
+		if frappe.db.exists("Batch QR Maker", carton_no):
+			frappe.db.sql(
+				"""
+				UPDATE `tabBatch QR Maker Item`
+				SET status = %(status)s
+				WHERE parent = %(batch_id)s
+				""",
+				{"status": new_status, "batch_id": carton_no},
+			)
+			recalculate_batch_maker_counts(carton_no)
+
+	return new_status
+
+
+def require_stock_manager():
+	roles = set(frappe.get_roles())
+	if not roles.intersection({"System Manager", "Stock Manager"}):
+		frappe.throw(_("Only Stock Managers can perform this action"), frappe.PermissionError)
+
+
+def get_stock_log_for_action(stock_log):
+	if not stock_log:
+		frappe.throw(_("Stock Log is required"))
+	doc = frappe.get_doc("Stock Log", stock_log)
+	doc.check_permission("write")
+	return doc
+
+
+def validate_stock_log_reopen(doc):
+	if not doc.carton_no:
+		return
+
+	carton = frappe.db.get_value("Carton QR", doc.carton_no, ["name", "status"], as_dict=True)
+	if carton:
+		if doc.type == "In" and carton.status == "In Stock":
+			frappe.throw(_("Carton {0} is already In Stock").format(doc.carton_no))
+		if doc.type == "In" and carton.status == "Dispatched" and doc.source_type != "Return Stock":
+			frappe.throw(_("Use Return Stock to receive dispatched carton {0}").format(doc.carton_no))
+		if doc.type == "Out" and carton.status != "In Stock":
+			frappe.throw(_("Carton {0} must be In Stock before reopening this dispatch").format(doc.carton_no))
+
+	if doc.type == "Out" and doc.delivery_note:
+		duplicate_scan = frappe.db.sql(
+			"""
+			SELECT name
+			FROM `tabStock Log`
+			WHERE carton_no = %(carton_no)s
+				AND delivery_note = %(delivery_note)s
+				AND type = 'Out'
+				AND IFNULL(movement_status, 'Logged') != 'Cancelled'
+				AND name != %(name)s
+			LIMIT 1
+			""",
+			{"carton_no": doc.carton_no, "delivery_note": doc.delivery_note, "name": doc.name},
+		)
+		if duplicate_scan:
+			frappe.throw(_("Carton {0} is already active against Delivery Note {1}").format(
+				doc.carton_no, doc.delivery_note
+			))
+
+
+def update_stock_log_movement_status(stock_log, movement_status, note=None):
+	require_stock_manager()
+	doc = get_stock_log_for_action(stock_log)
+	if doc.posted_stock_entry and movement_status == "Cancelled":
+		frappe.throw(_("Cancel the linked Stock Entry {0} before cancelling this Stock Log").format(doc.posted_stock_entry))
+
+	current_status = doc.movement_status or "Logged"
+	if current_status == movement_status:
+		return {"status": "success", "movement_status": current_status}
+
+	if movement_status == "Verified" and current_status != "Logged":
+		frappe.throw(_("Only Logged stock movements can be verified"))
+	if movement_status == "Logged" and current_status != "Cancelled":
+		frappe.throw(_("Only cancelled stock movements can be reopened"))
+	if movement_status == "Logged":
+		validate_stock_log_reopen(doc)
+
+	doc.movement_status = movement_status
+	if note:
+		doc.validation_message = note
+	doc.save()
+	new_carton_status = sync_carton_status_from_latest_log(doc.carton_no)
+	frappe.db.commit()
+	return {
+		"status": "success",
+		"movement_status": doc.movement_status,
+		"carton_status": new_carton_status,
+	}
+
+
+@frappe.whitelist()
+def verify_stock_log(stock_log, note=None):
+	return update_stock_log_movement_status(stock_log, "Verified", note)
+
+
+@frappe.whitelist()
+def cancel_stock_log(stock_log, reason=None):
+	return update_stock_log_movement_status(stock_log, "Cancelled", reason)
+
+
+@frappe.whitelist()
+def reopen_stock_log(stock_log):
+	return update_stock_log_movement_status(stock_log, "Logged")
+
+
 @frappe.whitelist(allow_guest=True)
 def handle_stock_log(**kwargs):
-	"""Enhanced processor with Deep Trace for debugging DN bypass."""
+	"""Create a Stock Log from scanner input with DN, carton, and duplicate safeguards."""
 	try:
-		# 1. Parameter Extraction (Robust Capture)
 		params = frappe._dict(kwargs)
-		if not params: params = frappe.form_dict
-		
+		if not params:
+			params = frappe.form_dict
+
 		manager_token = params.get("manager_token")
 		scan_data = params.get("scan_data")
 		log_type = params.get("log_type")
@@ -443,94 +649,89 @@ def handle_stock_log(**kwargs):
 		item_code = params.get("item_code")
 		source_type = params.get("source_type")
 		supplier = params.get("supplier")
-		
+		clean_dn = None
+		qty_from_scan = None
+
 		validate_token(manager_token)
-		
+
 		if not scan_data:
 			frappe.throw(_("Scan data missing"))
-		
-		# 2. Logic Check & Context Resolution
+
 		carton_no = scan_data
-		if '|' in scan_data:
-			parts = scan_data.split('|')
+		if "|" in scan_data:
+			parts = scan_data.split("|")
 			if len(parts) >= 3:
-				item_code, carton_no, qty_val = parts[0], parts[1], flt(parts[2])
-		
-		if frappe.db.exists("Carton QR", carton_no):
-			c = frappe.get_doc("Carton QR", carton_no)
+				item_code, carton_no, qty_from_scan = parts[0], parts[1], flt(parts[2])
+
+		carton_no = (carton_no or "").strip()
+		c = get_locked_carton(carton_no)
+		if c:
 			item_code = c.item if not item_code else item_code
-			qty = c.qty
+			qty = flt(c.qty)
 			uom = c.uom or frappe.db.get_value("Item", c.item, "stock_uom")
 		else:
-			qty = 1
+			qty = qty_from_scan or 1
 			uom = frappe.db.get_value("Item", item_code, "stock_uom") if item_code else None
 
-		# Resolved Item Code
 		curr_item = str(item_code or "").strip().upper()
-
-		# CRITICAL: If no item code resolved, we can't process further
-		if not curr_item or curr_item == "":
+		if not curr_item:
 			if not params.get("item_code"):
 				return {
-					"status": "error", 
+					"status": "error",
 					"message": _("New Carton {0}: Item code unknown. Please select a Product.").format(carton_no),
-					"needs_item_selection": True
+					"needs_item_selection": True,
 				}
 
-		# 3. DEEP TRACE: GLOBAL DELIVERY NOTE LOCKDOWN
 		if delivery_note:
-			# Normalize DN ID
-			clean_dn = unquote((delivery_note or "").strip())
-			if "/" in clean_dn:
-				match = re.search(r"(?:Delivery Note|delivery-note)/([^?/\s]+)", clean_dn, re.IGNORECASE)
-				if match: clean_dn = match.group(1)
-			
-			# Fetch all items in this DN (Case-Insensitive list)
-			dn_results = frappe.get_all("Delivery Note Item", filters={"parent": clean_dn}, fields=["item_code"])
-			dn_items = [(i.item_code or "").strip().upper() for i in dn_results if i.item_code]
-			
-			# FINAL TRACE: Show exactly what is being matched
+			clean_dn = normalize_delivery_note_id(delivery_note)
+			if not frappe.db.exists("Delivery Note", clean_dn):
+				frappe.throw(_("Delivery Note {0} not found in database").format(clean_dn))
+			if frappe.db.get_value("Delivery Note", clean_dn, "docstatus") == 2:
+				frappe.throw(_("Delivery Note {0} is cancelled").format(clean_dn))
 
+			dn_items = get_delivery_note_item_targets(clean_dn)
 			if curr_item not in dn_items:
-				mismatch_err = _("WRONG PRODUCT: Item {0} not matched with DN {1}").format(curr_item, clean_dn)
-				frappe.throw(mismatch_err)
-			
-			# QUANTITY HARD BLOCK: Don't allow more scans than required by DN
-			# We filter by parent and item_code because multiple rows of the same item are summed by Frappe in get_value or logic
-			target_qty = frappe.db.sql(
-				"""
-				SELECT SUM(qty)
-				FROM `tabDelivery Note Item`
-				WHERE parent = %(delivery_note)s AND item_code = %(item_code)s
-				""",
-				{"delivery_note": clean_dn, "item_code": curr_item},
-			)[0][0] or 0
-			current_scans = frappe.db.count("Stock Log", 
-											 {"delivery_note": clean_dn, "item": curr_item, "type": "Out"})
-			
+				frappe.throw(_("WRONG PRODUCT: Item {0} not matched with DN {1}").format(curr_item, clean_dn))
+
+			target_qty = dn_items[curr_item]
+			current_scans = get_active_out_scan_count(clean_dn, item_code)
 			if current_scans >= flt(target_qty):
 				frappe.throw(_("TARGET REACHED: Item {0} is already fully picked ({1}/{1} cartons).").format(curr_item, int(target_qty)))
 
-		# 4. Standard Sequence Checks
-		current_status = frappe.db.get_value("Carton QR", carton_no, "status") or "New"
-		if log_type == "In" and current_status in ["In Stock", "Dispatched"]:
+		current_status = (c.status if c else None) or "New"
+		if log_type == "In" and current_status == "In Stock":
 			frappe.throw(_("Sequence Error: Carton {0} is currently {1}. Cannot scan 'In' again.").format(carton_no, current_status))
-		
+		if log_type == "In" and current_status == "Dispatched" and source_type != "Return Stock":
+			frappe.throw(_("Sequence Error: Carton {0} is dispatched. Use Return Stock to receive it back.").format(carton_no))
+
 		if log_type == "Out" and current_status != "In Stock":
 			if current_status == "Dispatched":
 				frappe.throw(_("Sequence Error: Carton {0} has already been Dispatched.").format(carton_no))
-			else:
-				frappe.throw(_("Sequence Error: Carton {0} must be marked as 'In Stock' before it can be Dispatched (Current: {1}).").format(carton_no, current_status))
-		
-		# For Pick & Scan, it is ALWAYS an outbound log
+			frappe.throw(_("Sequence Error: Carton {0} must be marked as 'In Stock' before it can be Dispatched (Current: {1}).").format(carton_no, current_status))
+
 		final_type = log_type or ("Out" if (current_status == "In Stock" or delivery_note) else "In")
 		if delivery_note:
 			final_type = "Out"
 
-		# 5. Create Log
+		if final_type == "Out" and clean_dn:
+			duplicate_scan = frappe.db.sql(
+				"""
+				SELECT name
+				FROM `tabStock Log`
+				WHERE carton_no = %(carton_no)s
+					AND delivery_note = %(delivery_note)s
+					AND type = 'Out'
+					AND IFNULL(movement_status, 'Logged') != 'Cancelled'
+				LIMIT 1
+				""",
+				{"carton_no": carton_no, "delivery_note": clean_dn},
+			)
+			if duplicate_scan:
+				frappe.throw(_("DUPLICATE SCAN: Carton {0} is already scanned against Delivery Note {1}.").format(carton_no, clean_dn))
+
 		item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
-		batch = frappe.db.get_value("Carton QR", carton_no, "batch")
-		
+		batch = c.batch if c else frappe.db.get_value("Carton QR", carton_no, "batch")
+
 		doc = frappe.new_doc("Stock Log")
 		doc.update({
 			"item": item_code,
@@ -539,29 +740,20 @@ def handle_stock_log(**kwargs):
 			"type": final_type,
 			"qty": qty,
 			"uom": uom,
-			"delivery_note": clean_dn if (final_type == "Out" and 'clean_dn' in locals()) else (delivery_note if final_type == "Out" else None),
+			"delivery_note": clean_dn if final_type == "Out" else None,
 			"customer": customer if (final_type == "Out" or (final_type == "In" and source_type == "Return Stock")) else None,
 			"source_type": source_type if final_type == "In" else None,
 			"supplier": supplier if (final_type == "In" and source_type == "Purchase") else None,
-			"scan_time": now_datetime()
+			"movement_status": "Logged",
+			"scan_time": now_datetime(),
 		})
 		# Scanner token validation is the trust boundary for guest stock scans;
 		# stock operators do not need Desk create permission for each scan row.
 		doc.insert(ignore_permissions=True)
 
-		# 6. Update or Create Status
-		new_status = "In Stock" if final_type == "In" else "Dispatched"
-		
-		# Propagate to THE specific carton/batch record itself
-		if frappe.db.exists("Carton QR", carton_no):
-			frappe.db.set_value("Carton QR", carton_no, "status", new_status)
-		
-		# Propagate to ALL individual cartons linked to this batch ID
-		# This ensures that scanning a Batch QR for "Inbound" marks all its contents as "In Stock"
-		frappe.db.set_value("Carton QR", {"batch": (carton_no or "").strip()}, "status", new_status, update_modified=True)
+		new_status = get_stock_status_for_log_type(final_type)
 
-		if not frappe.db.exists("Carton QR", carton_no) and final_type == "In":
-			# Auto-create tracking record for NEW cartons
+		if not c and not frappe.db.exists("Carton QR", carton_no) and final_type == "In":
 			new_c = frappe.new_doc("Carton QR")
 			new_c.update({
 				"name": carton_no,
@@ -569,15 +761,13 @@ def handle_stock_log(**kwargs):
 				"carton_no": carton_no,
 				"status": new_status,
 				"qty": qty,
-				"creation_type": "Scanner"
+				"uom": uom,
+				"creation_type": "Scanner",
 			})
 			# New inbound cartons are created by a validated scanner session.
 			new_c.insert(ignore_permissions=True)
-		
-		# REAL-TIME BATCH SYNC: Propagate to the Batch QR Maker items/counts
-		batch_id = frappe.db.get_value("Carton QR", carton_no, "batch")
-		if batch_id and frappe.db.exists("Batch QR Maker", batch_id):
-			update_batch_maker_status(batch_id, carton_no, new_status)
+
+		new_status = sync_carton_status_from_latest_log(carton_no) or new_status
 
 		return {
 			"status": "success",
@@ -586,14 +776,14 @@ def handle_stock_log(**kwargs):
 			"qty": qty,
 			"log_type": final_type,
 			"current_status": new_status,
-			"carton_no": carton_no
+			"carton_no": carton_no,
 		}
 	except Exception as e:
 		frappe.db.rollback()
 		frappe.log_error(frappe.get_traceback(), _("Stock Log Action Error"))
 		return {
 			"status": "error",
-			"message": get_public_error_message(e)
+			"message": get_public_error_message(e),
 		}
 
 
@@ -647,31 +837,40 @@ def log_batch():
 
 @frappe.whitelist(allow_guest=True)
 def revert_stock_log(token, carton_no, delivery_note):
-	"""Deletes the latest "Out" log for a carton/DN to support scanner 'Undo'."""
+	"""Cancel the latest Out log for scanner Undo while preserving audit history."""
 	validate_token(token)
-	
-	filters = {"carton_no": (carton_no or "").strip(), "type": "Out"}
-	if delivery_note:
-		filters["delivery_note"] = (delivery_note or "").strip()
-		
-	latest_log = frappe.get_all("Stock Log", 
-								 filters=filters, 
-								 order_by="creation desc", 
-								 limit=1)
+
+	clean_dn = normalize_delivery_note_id(delivery_note) if delivery_note else None
+	latest_log = frappe.db.sql(
+		"""
+		SELECT name
+		FROM `tabStock Log`
+		WHERE carton_no = %(carton_no)s
+			AND type = 'Out'
+			AND IFNULL(movement_status, 'Logged') != 'Cancelled'
+			AND (%(delivery_note)s IS NULL OR delivery_note = %(delivery_note)s)
+		ORDER BY creation DESC
+		LIMIT 1
+		""",
+		{"carton_no": (carton_no or "").strip(), "delivery_note": clean_dn},
+		as_dict=True,
+	)
 	if not latest_log:
 		frappe.throw(_("No matching scan found to undo for carton {0}").format(carton_no))
-	
-	# Delete Log
-	batch = frappe.db.get_value("Carton QR", carton_no, "batch")
-	frappe.delete_doc("Stock Log", latest_log[0].name, ignore_permissions=True)
-	
-	# Revert Carton Status back to "In Stock"
-	if frappe.db.exists("Carton QR", carton_no):
-		frappe.db.set_value("Carton QR", carton_no, "status", "In Stock")
-	if batch:
-		update_batch_maker_status(batch, carton_no, "In Stock")
-	
-	return {"status": "success", "message": _("Scan undone successfully.")}
+
+	latest_doc = frappe.get_doc("Stock Log", latest_log[0].name)
+	latest_doc.movement_status = "Cancelled"
+	latest_doc.validation_message = _("Cancelled by scanner undo")
+	# Scanner token validation is the trust boundary for undo; stock operators can reverse
+	# scanner mistakes without requiring Desk write permission on Stock Log.
+	latest_doc.save(ignore_permissions=True)
+	new_status = sync_carton_status_from_latest_log(latest_doc.carton_no)
+	frappe.db.commit()
+	return {
+		"status": "success",
+		"message": _("Scan undone successfully."),
+		"carton_status": new_status,
+	}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -709,17 +908,35 @@ def check_carton_statuses(cartons, token=None):
 			})
 			continue
 
-		log_count = frappe.db.count("Stock Log", filters={"carton_no": carton_no})
-		move_type = "In" if log_count == 0 else "Out" if log_count == 1 else "Done"
+		active_log = frappe.db.sql(
+			"""
+			SELECT type
+			FROM `tabStock Log`
+			WHERE carton_no = %(carton_no)s
+				AND IFNULL(movement_status, 'Logged') != 'Cancelled'
+			ORDER BY IFNULL(scan_time, creation) DESC, creation DESC
+			LIMIT 1
+			""",
+			{"carton_no": carton_no},
+			as_dict=True,
+		)
+		current_status = record.status or sync_carton_status_from_latest_log(carton_no) or "Draft"
+		if current_status == "In Stock":
+			move_type = "Out"
+		elif current_status == "Dispatched":
+			move_type = "In"
+		else:
+			move_type = "In"
 		
 		statuses.append({
 			"carton_no": carton_no,
 			"move_type": move_type,
+			"latest_movement_type": active_log[0].type if active_log else None,
 			"item": record.item,
 			"item_name": frappe.db.get_value("Item", record.item, "item_name") or record.item,
 			"qty": record.qty,
 			"uom": record.uom,
-			"current_status": record.status
+			"current_status": current_status
 		})
 	return statuses
 

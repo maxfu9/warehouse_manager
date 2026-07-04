@@ -61,6 +61,7 @@ fixtures = [
 doctype_js = {
 	"Manager Scanner Settings": "public/js/manager_scanner_settings.js",
 	"Delivery Note": "public/js/delivery_note.js",
+	"Stock Log": "public/js/stock_log.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}

@@ -85,6 +85,33 @@
    "fieldtype": "Datetime",
    "label": "Scan Time",
    "read_only": 1
+  },
+  {
+   "fieldname": "workflow_section",
+   "fieldtype": "Section Break",
+   "label": "Workflow"
+  },
+  {
+   "default": "Logged",
+   "fieldname": "movement_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Movement Status",
+   "options": "Logged\nVerified\nPosted\nCancelled",
+   "reqd": 1
+  },
+  {
+   "fieldname": "posted_stock_entry",
+   "fieldtype": "Link",
+   "label": "Posted Stock Entry",
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "validation_message",
+   "fieldtype": "Small Text",
+   "label": "Validation Message",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,

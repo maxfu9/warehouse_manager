@@ -1637,10 +1637,22 @@
                 return;
             }
 
-            if (stockMode === 'In' && status.current_status === 'Dispatched') {
+            if (stockMode !== 'In' && status.current_status === 'Dispatched') {
                 showStatus("ALREADY DISPATCHED", `${status.item_name || status.item || status.carton_no} is already dispatched`, 'error');
                 playSound('error'); vibrate('error');
                 return;
+            }
+
+            if (stockMode === 'In' && status.current_status === 'Dispatched') {
+                const inboundSelection = getInboundSourceSelection();
+                const selectedSource = document.getElementById('source-type')?.value;
+                const isReturnStock = selectedSource === 'Return Stock' || inboundSelection?.source_type === 'Return Stock';
+                if (!isReturnStock) {
+                    showStatus("RETURN SOURCE REQUIRED", `${status.item_name || status.item || status.carton_no} is dispatched. Select Return Stock to receive it back.`, 'warning');
+                    openSettings();
+                    playSound('error'); vibrate('error');
+                    return;
+                }
             }
 
             const outboundGuard = getOutboundGuardMessage(status);
