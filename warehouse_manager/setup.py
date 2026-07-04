@@ -3,6 +3,7 @@ import frappe
 
 APP_NAME = "warehouse_manager"
 APP_TITLE = "Warehouse Management Hub"
+DESK_TITLE = "Warehouse"
 WORKSPACE = "EuroPlast Stock Log"
 ROLES = ("System Manager", "Stock Manager")
 
@@ -51,7 +52,7 @@ def setup_v16_desk():
 		"Desktop Icon",
 		APP_TITLE,
 		{
-			"label": APP_TITLE,
+			"label": DESK_TITLE,
 			"standard": 1,
 			"app": APP_NAME,
 			"icon_type": "App",
@@ -84,7 +85,7 @@ def setup_v16_desk():
 		"Workspace Sidebar",
 		APP_TITLE,
 		{
-			"title": APP_TITLE,
+			"title": DESK_TITLE,
 			"module": "Warehouse Management Hub",
 			"app": APP_NAME,
 			"standard": 1,
