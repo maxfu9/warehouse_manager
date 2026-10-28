@@ -1,0 +1,22 @@
+{
+ "doctype": "DocType",
+ "name": "Warehouse Scan Session",
+ "module": "Warehouse Management Hub",
+ "autoname": "field:session_key",
+ "engine": "InnoDB",
+ "track_changes": 1,
+ "fields": [
+  {"fieldname": "session_key", "fieldtype": "Data", "label": "Session ID", "unique": 1, "reqd": 1, "read_only": 1},
+  {"fieldname": "mode", "fieldtype": "Select", "label": "Movement", "options": "In\nOut", "reqd": 1, "in_list_view": 1, "read_only": 1},
+  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Open\nClosed", "default": "Open", "in_list_view": 1, "read_only": 1},
+  {"fieldname": "source_type", "fieldtype": "Data", "label": "Inbound Source", "read_only": 1},
+  {"fieldname": "supplier", "fieldtype": "Link", "label": "Supplier", "options": "Supplier", "read_only": 1},
+  {"fieldname": "customer", "fieldtype": "Link", "label": "Return Customer", "options": "Customer", "read_only": 1},
+  {"fieldname": "closed_at", "fieldtype": "Datetime", "label": "Closed At", "read_only": 1}
+ ],
+ "links": [{"link_doctype": "Stock Log", "link_fieldname": "scan_session"}],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "report": 1, "export": 1},
+  {"role": "Stock Manager", "read": 1, "report": 1, "export": 1}
+ ]
+}

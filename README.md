@@ -31,6 +31,51 @@ bench --site [your-site] migrate
 
 ## ⚙️ Configuration
 
+### Frappe v16 Desk
+
+Install and migration create the **Warehouse Hub** Desk icon and its sidebar.
+The sidebar includes the dashboard, scanner, carton and batch operations, all
+five warehouse reports, and both settings pages. Access follows the existing
+System Manager / Stock Manager roles and document permissions.
+
+After updating an existing v16 site, run from the bench directory:
+
+```bash
+bench --site <site-name> migrate
+bench --site <site-name> clear-cache
+bench restart
+```
+
+Reload Desk in the browser to refresh navigation. To repair only the Desk
+records, run `bench --site <site-name> execute warehouse_manager.setup.setup_v16_desk`.
+Frappe v15 continues to use the workspace; the v16 Desk setup is skipped there.
+
+### Saved scanner sessions and exceptions
+
+New scans are linked to an open **Warehouse Scan Session**, independently for
+inbound lots and outbound dispatches. Refreshing or changing modes restores
+totals from active Stock Logs. Close Lot / Start New Dispatch closes the saved
+session; finishing a DN keeps the dispatch session available for the next DN.
+Scanner Control > Resume Saved Session accepts an open Session ID from Desk.
+Existing browser-only scans remain visible until the first new session; older
+Stock Logs are not assigned to invented historical sessions.
+
+**Warehouse Exceptions** lists carton status mismatches, missing tracking
+records, missing partners/sources, and inactive stock. It shows up to 500 rows
+and supports item, carton, and inactivity filters. Cancelled Stock Logs are
+excluded from operational reports and saved-session totals.
+
+Regression checks:
+
+```bash
+python3 -m unittest discover -s warehouse_manager/tests -p 'test_*.py'
+node warehouse_manager/tests/test_scanner_controls.cjs
+bench --site <site-name> execute warehouse_manager.tests.stock_regressions.run
+```
+
+The database regression uses connection-local temporary tables and leaves
+production warehouse records untouched.
+
 1. **Setup Token**: Go to **Manager Scanner Settings** and set a `Manager Token` (e.g., `company123`).
 2. **Access URL**: The system will automatically generate a friendly URL for your device.
 3. **Inventory Settings**: Configure your Item Codes and cartons in the **Warehouse Management Hub** module.

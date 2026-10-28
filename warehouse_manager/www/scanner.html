@@ -137,6 +137,7 @@
         }
 
         .metadata-item {
+            width: 100%; text-align: left; font-family: inherit; cursor: pointer;
             background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
             padding: 15px; border-radius: 12px; font-size: 1rem; color: #e2e8f0;
             display: flex; justify-content: space-between; align-items: center;
@@ -748,7 +749,7 @@
         }
         .settings-actions {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
             margin-top: 6px;
         }
@@ -1251,12 +1252,12 @@
         </div>
         <div class="setting-box" id="supplier-container" style="display: none;">
             <span class="setting-label">Supplier</span>
-            <input type="text" id="supplier-input" list="supplier-list" placeholder="Search Supplier..." class="wizard-input" style="padding: 8px; margin:0;" autocomplete="off" oninput="rememberSupplierInput(this.value)">
+            <input type="text" id="supplier-input" list="supplier-list" placeholder="Search Supplier..." class="wizard-input" style="padding: 8px; margin:0;" autocomplete="off" onchange="rememberSupplierInput(this.value)">
             <datalist id="supplier-list"></datalist>
         </div>
         <div class="setting-box" id="customer-container" style="display: none;">
             <span class="setting-label">Customer</span>
-            <input type="text" id="customer-input" list="customer-list" placeholder="Search Customer..." class="wizard-input" style="padding: 8px; margin:0;" autocomplete="off" oninput="rememberCustomerInput(this.value)">
+            <input type="text" id="customer-input" list="customer-list" placeholder="Search Customer..." class="wizard-input" style="padding: 8px; margin:0;" autocomplete="off" onchange="rememberCustomerInput(this.value)">
             <datalist id="customer-list"></datalist>
         </div>
         <div class="settings-section-title">Session Actions</div>
@@ -1296,6 +1297,7 @@
         <div class="settings-actions">
             <button class="secondary-btn" onclick="restartScanner('manual')">Restart Camera</button>
             <button class="secondary-btn" onclick="resetWizard()">Reset Setup</button>
+            <button class="secondary-btn" onclick="resumeSavedSession()">Resume Saved Session</button>
             <button class="primary-btn" onclick="toggleSettings()">Done</button>
         </div>
     </div>
@@ -1333,6 +1335,109 @@
     let autoConfirmEnabled = localStorage.getItem('scanner_auto_confirm') === 'true';
     let recentStripExpanded = localStorage.getItem('scanner_recent_expanded') === 'true';
     let dnItemsExpanded = false;
+    let sessionRestoreInFlight = false;
+
+    async function fetchSession(url, options = {}) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        try {
+            return await fetch(url, {...options, signal: controller.signal});
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+
+    function getServerSessionKey(mode) {
+        const storageKey = `scanner_server_session_${mode === 'In' ? 'In' : 'Out'}`;
+        let key = localStorage.getItem(storageKey);
+        if (!key) {
+            key = crypto.randomUUID();
+            localStorage.setItem(storageKey, key);
+        }
+        return key;
+    }
+
+    async function restoreServerSession() {
+        const mode = getSummaryScope();
+        const key = localStorage.getItem(`scanner_server_session_${mode}`);
+        if (!key || !localStorage.getItem('scanner_passcode')) return;
+        sessionRestoreInFlight = true;
+        try {
+            const query = new URLSearchParams({session_key: key, token: localStorage.getItem('scanner_passcode')});
+            const response = await fetchSession(`/api/method/warehouse_manager.scanner_sessions.get_scan_session?${query}`);
+            const result = await response.json();
+            if (!response.ok) throw new Error('Unable to restore saved session');
+            if (getSummaryScope() !== mode) return;
+            const session = result.message;
+            if (!session) return;
+            if (session.status === 'Closed') {
+                localStorage.removeItem(`scanner_server_session_${mode}`);
+                resetSummaryState();
+            } else {
+                truckTotal = session.cartons;
+                sessionItems = Object.fromEntries(session.items.map(item => [item.item, item]));
+                localStorage.setItem('scanner_truck_total', truckTotal);
+                localStorage.setItem('scanner_session_items', JSON.stringify(sessionItems));
+                if (mode === 'In') {
+                    const selection = {source_type: session.source_type, supplier: session.supplier, customer: session.customer};
+                    if (selection.source_type === 'Production') selection.ui_source_type = 'Internal Production';
+                    saveInboundSource(selection);
+                    applyInboundSourceSelection(selection);
+                }
+            }
+            renderSessionBadges();
+        } catch (error) {
+            showStatus('SESSION RESTORE', error.message, 'warning');
+        } finally {
+            sessionRestoreInFlight = false;
+        }
+    }
+
+    async function closeServerSession(mode = getSummaryScope()) {
+        if (scanRequestInFlight) {
+            showStatus('SCAN IN PROGRESS', 'Wait for the current scan before closing the session.', 'warning');
+            return false;
+        }
+        const storageKey = `scanner_server_session_${mode}`;
+        const key = localStorage.getItem(storageKey);
+        if (!key) return true;
+        try {
+            const response = await fetchSession('/api/method/warehouse_manager.scanner_sessions.close_scan_session', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({session_key: key, token: localStorage.getItem('scanner_passcode')})
+            });
+            const result = await response.json();
+            if (!response.ok || result.message?.status !== 'success') throw new Error('Could not close the session. Please retry.');
+            localStorage.removeItem(storageKey);
+            return true;
+        } catch (error) {
+            showStatus('SESSION ERROR', error.message, 'error');
+            return false;
+        }
+    }
+
+    async function resumeSavedSession() {
+        if (truckTotal > 0) {
+            showStatus('CLOSE SESSION FIRST', 'Close the current lot or dispatch before resuming another.', 'warning');
+            return;
+        }
+        const key = prompt('Enter the Session ID from Warehouse Hub > Scan Sessions:')?.trim();
+        if (!key) return;
+        try {
+            const query = new URLSearchParams({session_key: key, token: localStorage.getItem('scanner_passcode')});
+            const response = await fetchSession(`/api/method/warehouse_manager.scanner_sessions.get_scan_session?${query}`);
+            const result = await response.json();
+            if (!response.ok || !result.message || result.message.status !== 'Open') throw new Error('Open session not found');
+            const session = result.message;
+            localStorage.setItem(`scanner_server_session_${session.mode}`, session.session_key);
+            document.getElementById('stock-mode').value = session.mode;
+            updateStockMode();
+            await restoreServerSession();
+            showStatus('SESSION RESTORED', `${session.cartons} CTN recovered`, 'success');
+        } catch (error) {
+            showStatus('RESTORE FAILED', error.message, 'error');
+        }
+    }
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playSound(type) {
@@ -1553,7 +1658,7 @@
             });
     }
     async function onScanSuccess(decodedText) {
-        if (isScanningBlocked || scanRequestInFlight) return;
+        if (isScanningBlocked || scanRequestInFlight || sessionRestoreInFlight) return;
         const scanNow = Date.now();
         const isSameCode = decodedText === lastScannedValue;
         const repeatCooldown = isSameCode ? 1800 : 1200;
@@ -1607,7 +1712,7 @@
             const status = data.message[0];
 
             // 4. Strict DN Block (Early Feedback)
-            if (activeDN && status.item && status.item !== 'Unknown') {
+            if (stockMode === 'Delivery' && activeDN && status.item && status.item !== 'Unknown') {
                 const dnItems = JSON.parse(localStorage.getItem('scanner_dn_checklist') || '{}');
                 const itCode = status.item.trim().toUpperCase();
                 if (!dnItems[itCode]) {
@@ -2014,7 +2119,7 @@
     }
 
     function checkDeliveryCompletion() {
-        if (!activeDN || !dnChecklist) return;
+        if (stockMode !== 'Delivery' || !activeDN || !dnChecklist) return;
         
         let allMatched = true;
         let totalTarget = 0;
@@ -2317,8 +2422,9 @@
         `).join('');
     }
 
-    function clearHistory() {
+    async function clearHistory() {
         if (!confirm("Clear overall session and history?")) return;
+        if (!await closeServerSession()) return;
         truckTotal = 0;
         mappingCount = 0;
         sessionItems = {};
@@ -2654,7 +2760,7 @@
             showStatus("CLEAN", "No active delivery note", 'info');
             return;
         }
-        if (confirm(`Clear current DN and discard its progress?`)) {
+        if (confirm('Clear the selected DN? Saved scans and dispatch totals will be kept.')) {
             activeDN = null;
             dnChecklist = {};
             dnMatchCount = 0;
@@ -2662,10 +2768,7 @@
             dnItemsExpanded = false;
             activeCustomer = '';
             activeCustomerName = '';
-            truckTotal = 0;
             mappingCount = 0;
-            sessionItems = {};
-            outboundSessionCartons = [];
             
             localStorage.removeItem('scanner_active_dn');
             localStorage.removeItem('scanner_dn_checklist');
@@ -2673,10 +2776,7 @@
             localStorage.removeItem('scanner_dn_total_count');
             localStorage.removeItem('active_customer_id');
             localStorage.removeItem('active_customer_name');
-            localStorage.removeItem('scanner_truck_total');
             localStorage.removeItem('scanner_mapping_count');
-            localStorage.removeItem('scanner_session_items');
-            localStorage.removeItem('scanner_outbound_cartons');
             
             renderSessionBadges();
             renderChecklist();
@@ -2707,6 +2807,7 @@
             resetSummaryState();
             summaryScope = nextSummaryScope;
             localStorage.setItem('scanner_summary_scope', summaryScope);
+            restoreServerSession();
         }
 
         const modeLabel = (stockMode === 'Delivery') ? 'PICK & SCAN' : (stockMode === 'In' ? 'INBOUND' : 'CUSTOMER DISPATCH');
@@ -2808,6 +2909,8 @@
 
     function initializeScannerApp() {
         hydrateSessionFromStorage();
+        // Restore after initialization has selected the saved movement mode.
+        setTimeout(restoreServerSession, 0);
         renderRecentStrip();
         if (!localStorage.getItem('scanner_setup_done')) {
             document.getElementById('wizard-overlay').style.display = 'flex';
@@ -2927,7 +3030,8 @@
         overlay.style.display = 'flex';
     }
 
-    function finalizeCloseOutboundSession() {
+    async function finalizeCloseOutboundSession() {
+        if (!await closeServerSession('Out')) return;
         hideOutboundCloseOverlay();
         activeDN = null;
         dnChecklist = {};
@@ -3023,7 +3127,8 @@
         overlay.style.display = 'flex';
     }
 
-    function finalizeCloseInboundLot() {
+    async function finalizeCloseInboundLot() {
+        if (!await closeServerSession('In')) return;
         hideLotCloseOverlay();
         truckTotal = 0;
         mappingCount = 0;
@@ -3045,6 +3150,12 @@
         const sourceType = document.getElementById('source-type').value;
         const supplier = document.getElementById('supplier-input').value.trim();
         const customer = document.getElementById('customer-input').value.trim();
+        if (truckTotal > 0 && activeInboundSource) {
+            if ((activeInboundSource.source_type === 'Purchase' && supplier !== activeInboundSource.supplier) ||
+                (activeInboundSource.source_type === 'Return Stock' && customer !== activeInboundSource.customer)) {
+                return 'Close the current lot before changing its partner';
+            }
+        }
         if (sourceType === 'Purchase' && !supplier && !activeInboundSource) return 'Select supplier first';
         if (sourceType === 'Return Stock' && !customer && !activeInboundSource) return 'Select customer first';
         return null;
@@ -3217,26 +3328,38 @@
 
         const data = type === 'Supplier' ? suppliersData : customersData;
         
-        list.innerHTML = (data || []).map(item => `
-            <div class="metadata-item" onclick="processWorkflowLog('${type}', '${item}')">
-                <div>${item}</div>
-                <div style="color:var(--primary); font-size:0.8rem;">SELECT</div>
-            </div>
-        `).join('');
+        list.replaceChildren();
+        (data || []).forEach(item => {
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'metadata-item';
+            const name = document.createElement('span');
+            name.textContent = item;
+            const action = document.createElement('span');
+            action.textContent = 'SELECT';
+            action.style.color = 'var(--primary)';
+            row.append(name, action);
+            row.addEventListener('click', () => processWorkflowLog(type, item));
+            list.append(row);
+        });
+    }
+
+    function buildStockLogPayload(scanData, extraParams = {}) {
+        const payload = {
+            scan_data: scanData,
+            manager_token: localStorage.getItem('scanner_passcode'),
+            log_type: extraParams.mode || stockMode,
+            ...extraParams
+        };
+        payload.delivery_note = payload.log_type === 'Out' && stockMode === 'Delivery'
+            ? (activeDN?.dn_id || null) : null;
+        payload.session_key = getServerSessionKey(payload.log_type);
+        return payload;
     }
 
     async function handleStockLog(scanData, callback, extraParams = {}) {
         try {
-            const passcode = localStorage.getItem('scanner_passcode');
-            const payload = {
-                scan_data: scanData,
-                manager_token: passcode,
-                log_type: extraParams.mode || stockMode, 
-                delivery_note: (activeDN && activeDN.dn_id) ? activeDN.dn_id : null,
-                ...extraParams
-            };
-
-
+            const payload = buildStockLogPayload(scanData, extraParams);
             const response = await fetch('/api/method/warehouse_manager.api.handle_stock_log', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3296,7 +3419,7 @@
             source_type: (logType === 'In') ? (normalizedBranchType === 'Production' ? 'Production' : (normalizedBranchType === 'Return' ? 'Return Stock' : normalizedBranchType)) : null,
             customer: (logType === 'Out' || normalizedBranchType === 'Return') ? (actorName || activeCustomer) : null,
             supplier: (logType === 'In' && normalizedBranchType === 'Purchase') ? actorName : null,
-            delivery_note: (activeDN && activeDN.dn_id) ? activeDN.dn_id : null
+            delivery_note: stockMode === 'Delivery' && logType === 'Out' && activeDN ? activeDN.dn_id : null
         };
 
         if (logType === 'Out') {
@@ -3310,7 +3433,7 @@
         }
 
         // Strict DN Validation for manual selection
-        if (activeDN && itemCode) {
+        if (stockMode === 'Delivery' && activeDN && itemCode) {
             const dnItems = JSON.parse(localStorage.getItem('scanner_dn_checklist') || '{}');
             const itCode = itemCode.trim().toUpperCase();
             if (!dnItems[itCode]) {
@@ -3353,7 +3476,7 @@
                 updateSessionStats(res);
                 
                 // If it was part of a DN, refresh the checklist
-                if (activeDN && res.log_type === 'Out') {
+                if (stockMode === 'Delivery' && activeDN && res.log_type === 'Out') {
                     const itCode = res.item || itemCode;
                     if (dnChecklist[itCode]) {
                         dnChecklist[itCode].current++;

@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.utils import date_diff, nowdate
+from warehouse_manager.stock_queries import active_log, latest_active_log
 
 def execute(filters=None):
 	filters = filters or {}
@@ -52,10 +53,10 @@ def get_data(filters):
 			sl.uom,
 			SUM(CASE WHEN sl.type = 'In' THEN sl.qty ELSE 0 END) as total_in,
 			SUM(CASE WHEN sl.type = 'Out' THEN sl.qty ELSE 0 END) as total_out,
-			SUM(
+			COUNT(DISTINCT
 				CASE
-					WHEN latest.name IS NOT NULL AND latest.type = 'In' THEN 1
-					ELSE 0
+					WHEN latest.name IS NOT NULL AND latest.type = 'In' THEN latest.carton_no
+					ELSE NULL
 				END
 			) as carton_count,
 			MAX(sl.scan_time) as last_movement
@@ -64,20 +65,12 @@ def get_data(filters):
 		LEFT JOIN (
 			SELECT cur.*
 			FROM `tabStock Log` cur
-			WHERE NOT EXISTS (
-				SELECT 1
-				FROM `tabStock Log` newer
-				WHERE newer.carton_no = cur.carton_no
-				AND (
-					newer.scan_time > cur.scan_time
-					OR (newer.scan_time = cur.scan_time AND newer.name > cur.name)
-				)
-			)
+			WHERE {latest_active_log('cur')}
 		) latest ON latest.carton_no = sl.carton_no
 			AND latest.item = sl.item
 			AND IFNULL(latest.batch, '') = IFNULL(sl.batch, '')
-			AND latest.uom = sl.uom
-		WHERE 1=1 {where_clause}
+			AND IFNULL(latest.uom, '') = IFNULL(sl.uom, '')
+		WHERE {active_log('sl')} {where_clause}
 		GROUP BY sl.batch, sl.item, item.item_name, sl.uom
 		ORDER BY last_movement DESC
 		""",

@@ -1,4 +1,5 @@
 import frappe
+from warehouse_manager.stock_queries import active_log
 from frappe import _
 
 def execute(filters=None):
@@ -57,6 +58,7 @@ def get_data(filters):
 		FROM `tabStock Log` sl
 		LEFT JOIN `tabItem` item ON item.name = sl.item
 		WHERE sl.type = 'Out' 
+		AND {active_log('sl')}
 		AND sl.customer IS NOT NULL
 		{where_clause}
 		GROUP BY sl.customer, sl.item, item.item_name, sl.delivery_note

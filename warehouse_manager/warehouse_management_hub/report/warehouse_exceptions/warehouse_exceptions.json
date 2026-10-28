@@ -1,0 +1,17 @@
+{
+ "doctype": "Report",
+ "name": "Warehouse Exceptions",
+ "report_name": "Warehouse Exceptions",
+ "module": "Warehouse Management Hub",
+ "is_standard": "Yes",
+ "report_type": "Script Report",
+ "ref_doctype": "Stock Log",
+ "disabled": 0,
+ "prepared_report": 0,
+ "filters": [
+  {"fieldname": "item", "fieldtype": "Link", "label": "Item", "options": "Item"},
+  {"fieldname": "carton_no", "fieldtype": "Data", "label": "Carton No"},
+  {"fieldname": "aging_days", "fieldtype": "Int", "label": "Inactive Stock Days", "default": "30"}
+ ],
+ "roles": [{"role": "System Manager"}, {"role": "Stock Manager"}]
+}

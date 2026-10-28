@@ -10,6 +10,12 @@ CANCELLED_STATUS = "Cancelled"
 class StockLog(Document):
 	def validate(self):
 		self.normalize_values()
+		if self.type == "In" and self.delivery_note:
+			frappe.throw(_("Inbound scans cannot be linked to a Delivery Note"))
+		if self.type == "Out" and self.delivery_note:
+			from warehouse_manager.stock_queries import lock_delivery_note
+
+			lock_delivery_note(self.delivery_note)
 		self.validate_item()
 		self.validate_quantity()
 		self.validate_party_context()
@@ -97,18 +103,19 @@ class StockLog(Document):
 		if flt(target_qty) <= 0:
 			frappe.throw(_("Item {0} is not part of Delivery Note {1}").format(self.item, self.delivery_note))
 
-		current_scans = frappe.db.sql(
+		current_scans = len(frappe.db.sql(
 			"""
-			SELECT COUNT(*)
+			SELECT name
 			FROM `tabStock Log`
 			WHERE delivery_note = %(delivery_note)s
 				AND item = %(item)s
 				AND type = 'Out'
 				AND IFNULL(movement_status, 'Logged') != 'Cancelled'
 				AND name != %(name)s
+			FOR UPDATE
 			""",
 			{"delivery_note": self.delivery_note, "item": self.item, "name": self.name or ""},
-		)[0][0]
+		))
 		if current_scans >= flt(target_qty):
 			frappe.throw(_("Target quantity reached for Item {0} on Delivery Note {1}").format(self.item, self.delivery_note))
 

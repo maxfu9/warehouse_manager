@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.utils import date_diff, nowdate
+from warehouse_manager.stock_queries import latest_active_log
 
 def execute(filters=None):
 	filters = filters or {}
@@ -62,15 +63,7 @@ def get_data(filters):
 		LEFT JOIN `tabItem` item ON item.name = sl.item
 		WHERE sl.type = 'In'
 		{where_clause}
-		AND NOT EXISTS (
-			SELECT 1
-			FROM `tabStock Log` newer
-			WHERE newer.carton_no = sl.carton_no
-			AND (
-				newer.scan_time > sl.scan_time
-				OR (newer.scan_time = sl.scan_time AND newer.name > sl.name)
-			)
-		)
+		AND {latest_active_log('sl')}
 		ORDER BY sl.scan_time ASC
 		""",
 		params,

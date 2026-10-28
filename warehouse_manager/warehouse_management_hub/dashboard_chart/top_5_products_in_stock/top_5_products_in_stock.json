@@ -7,7 +7,7 @@
  "docstatus": 0,
  "doctype": "Dashboard Chart",
  "document_type": "Carton QR",
- "filters_json": "[]",
+ "filters_json": "[[\"Carton QR\", \"status\", \"=\", \"In Stock\"]]",
  "group_by_based_on": "item",
  "group_by_type": "Count",
  "idx": 0,

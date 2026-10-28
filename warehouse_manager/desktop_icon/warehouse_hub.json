@@ -8,11 +8,13 @@
  "icon_type": "App",
  "idx": 0,
  "label": "Warehouse Hub",
- "link": "/desk/europlast-stock-log",
- "link_type": "External",
- "modified": "2026-07-03 00:00:00.000000",
+ "link_to": "Warehouse Hub",
+ "sidebar": "Warehouse Hub",
+ "logo_url": "/assets/warehouse_manager/icons/manager-scanner-icon.svg",
+ "link_type": "Workspace Sidebar",
+ "modified": "2026-10-29 00:00:00.000000",
  "modified_by": "Administrator",
- "name": "Warehouse Management Hub",
+ "name": "Warehouse Hub",
  "owner": "Administrator",
  "roles": [
   {

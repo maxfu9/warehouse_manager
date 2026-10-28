@@ -75,6 +75,9 @@
    "type": "Link"
   },
   {
+   "child": 1, "type": "Link", "label": "Scan Sessions", "link_type": "DocType", "link_to": "Warehouse Scan Session"
+  },
+  {
    "child": 0,
    "collapsible": 1,
    "icon": "file-text",
@@ -141,6 +144,9 @@
    "type": "Link"
   },
   {
+   "child": 1, "type": "Link", "label": "Warehouse Exceptions", "link_type": "Report", "link_to": "Warehouse Exceptions"
+  },
+  {
    "child": 0,
    "collapsible": 1,
    "icon": "settings",
@@ -161,12 +167,15 @@
    "link_type": "DocType",
    "show_arrow": 0,
    "type": "Link"
+  },
+  {
+   "child": 1, "type": "Link", "label": "Manager Scanner Settings", "link_type": "DocType", "link_to": "Manager Scanner Settings"
   }
  ],
- "modified": "2026-07-03 00:00:00.000000",
+ "modified": "2026-10-29 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Warehouse Management Hub",
- "name": "Warehouse Management Hub",
+ "name": "Warehouse Hub",
  "owner": "Administrator",
  "standard": 1,
  "title": "Warehouse Hub"

@@ -8,7 +8,7 @@
  "docstatus": 0,
  "doctype": "Dashboard Chart",
  "document_type": "Stock Log",
- "filters_json": "[[\"Stock Log\",\"type\",\"=\",\"Out\"]]",
+ "filters_json": "[[\"Stock Log\",\"type\",\"=\",\"Out\"],[\"Stock Log\",\"movement_status\",\"!=\",\"Cancelled\"]]",
  "group_by_based_on": "customer",
  "group_by_type": "Sum",
  "idx": 0,

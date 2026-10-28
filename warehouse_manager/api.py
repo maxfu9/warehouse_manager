@@ -482,17 +482,18 @@ def get_active_out_scan_count(delivery_note, item_code):
 	if not delivery_note or not item_code:
 		return 0
 
-	return frappe.db.sql(
+	return len(frappe.db.sql(
 		"""
-		SELECT COUNT(*)
+		SELECT name
 		FROM `tabStock Log`
 		WHERE delivery_note = %(delivery_note)s
 			AND item = %(item_code)s
 			AND type = 'Out'
 			AND IFNULL(movement_status, 'Logged') != 'Cancelled'
+		FOR UPDATE
 		""",
 		{"delivery_note": delivery_note, "item_code": item_code},
-	)[0][0]
+	))
 
 
 def get_stock_status_for_log_type(log_type):
@@ -505,13 +506,13 @@ def sync_carton_status_from_latest_log(carton_no):
 	if not carton_no:
 		return None
 
+	from warehouse_manager.stock_queries import latest_active_log
+
 	latest_log = frappe.db.sql(
-		"""
+		f"""
 		SELECT type
-		FROM `tabStock Log`
-		WHERE carton_no = %(carton_no)s
-			AND IFNULL(movement_status, 'Logged') != 'Cancelled'
-		ORDER BY IFNULL(scan_time, creation) DESC, creation DESC
+		FROM `tabStock Log` sl
+		WHERE carton_no = %(carton_no)s AND {latest_active_log('sl')}
 		LIMIT 1
 		""",
 		{"carton_no": carton_no},
@@ -603,6 +604,10 @@ def update_stock_log_movement_status(stock_log, movement_status, note=None):
 	if movement_status == "Logged" and current_status != "Cancelled":
 		frappe.throw(_("Only cancelled stock movements can be reopened"))
 	if movement_status == "Logged":
+		if doc.delivery_note:
+			from warehouse_manager.stock_queries import lock_delivery_note
+
+			lock_delivery_note(doc.delivery_note)
 		validate_stock_log_reopen(doc)
 
 	doc.movement_status = movement_status
@@ -653,6 +658,19 @@ def handle_stock_log(**kwargs):
 		qty_from_scan = None
 
 		validate_token(manager_token)
+		if log_type not in ("In", "Out"):
+			frappe.throw(_("Select Inbound or Outbound before scanning"))
+		if log_type == "In" and delivery_note:
+			frappe.throw(_("Inbound scans cannot be linked to a Delivery Note"))
+
+		from warehouse_manager.scanner_sessions import lock_scan_session
+
+		scan_session = lock_scan_session(params.get("session_key"), log_type, source_type, supplier, customer)
+		if delivery_note:
+			from warehouse_manager.stock_queries import lock_delivery_note
+
+			delivery_note = normalize_delivery_note_id(delivery_note)
+			lock_delivery_note(delivery_note)
 
 		if not scan_data:
 			frappe.throw(_("Scan data missing"))
@@ -745,6 +763,7 @@ def handle_stock_log(**kwargs):
 			"source_type": source_type if final_type == "In" else None,
 			"supplier": supplier if (final_type == "In" and source_type == "Purchase") else None,
 			"movement_status": "Logged",
+			"scan_session": scan_session,
 			"scan_time": now_datetime(),
 		})
 		# Scanner token validation is the trust boundary for guest stock scans;
@@ -1026,6 +1045,7 @@ def get_delivery_note_cartons(delivery_note):
 			ON carton_qr.name = sl.carton_no
 		WHERE sl.delivery_note = %(delivery_note)s
 			AND sl.type = 'Out'
+			AND IFNULL(sl.movement_status, 'Logged') != 'Cancelled'
 			AND IFNULL(sl.carton_no, '') != ''
 		GROUP BY sl.carton_no
 		ORDER BY sl.carton_no ASC

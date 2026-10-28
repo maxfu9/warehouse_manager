@@ -18,23 +18,15 @@ _apply_workspace_compatibility_patch()
 add_to_apps_screen = [
 	{
 		"name": "warehouse_manager",
-		"logo": "/assets/warehouse_manager/logo.png",
+		"logo": "/assets/warehouse_manager/icons/manager-scanner-icon.svg",
 		"title": "Warehouse Hub",
 		"route": "/desk/europlast-stock-log",
 		"has_permission": "warehouse_manager.api.has_app_permission"
 	}
 ]
 
-fixtures = [
-	{
-		"doctype": "Desktop Icon",
-		"filters": [["app", "=", "warehouse_manager"]],
-	},
-	{
-		"doctype": "Workspace Sidebar",
-		"filters": [["app", "=", "warehouse_manager"]],
-	},
-]
+# Desk records are created by setup_v16_desk, which skips sites without the
+# v16 Sidebar schema. Do not export v16-only records as cross-version fixtures.
 
 # Includes in <head>
 # ------------------
@@ -110,9 +102,9 @@ jinja = {
 # ------------
 
 # before_install = "warehouse_manager.install.before_install"
-# after_install = "warehouse_manager.install.after_install"
+after_install = ["warehouse_manager.setup.sync_standard_navigation", "warehouse_manager.setup.setup_v16_desk"]
 
-after_migrate = "warehouse_manager.setup.setup_v16_desk"
+after_migrate = ["warehouse_manager.setup.sync_standard_navigation", "warehouse_manager.setup.setup_v16_desk"]
 
 # Uninstallation
 # ------------

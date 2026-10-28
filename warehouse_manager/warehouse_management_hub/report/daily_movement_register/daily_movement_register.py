@@ -78,7 +78,7 @@ def get_data(filters):
 			qty,
 			COALESCE(customer, supplier, source_type) as party
 		FROM `tabStock Log`
-		WHERE 1=1 {where_clause}
+		WHERE IFNULL(movement_status, 'Logged') != 'Cancelled' {where_clause}
 		ORDER BY scan_time DESC
 		""",
 		params,

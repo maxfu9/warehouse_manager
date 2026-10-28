@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from warehouse_manager.stock_queries import active_log, latest_active_log
 
 def execute(filters=None):
 	filters = filters or {}
@@ -116,20 +117,12 @@ def get_data(filters):
 		LEFT JOIN (
 			SELECT cur.*
 			FROM `tabStock Log` cur
-			WHERE NOT EXISTS (
-				SELECT 1
-				FROM `tabStock Log` newer
-				WHERE newer.carton_no = cur.carton_no
-				AND (
-					newer.scan_time > cur.scan_time
-					OR (newer.scan_time = cur.scan_time AND newer.name > cur.name)
-				)
-			)
+			WHERE {latest_active_log('cur')}
 		) latest ON latest.carton_no = sl.carton_no
 			AND latest.item = sl.item
 			AND IFNULL(latest.batch, '') = IFNULL(sl.batch, '')
 			AND IFNULL(latest.uom, '') = IFNULL(sl.uom, '')
-		WHERE 1=1 {where_clause}
+		WHERE {active_log('sl')} {where_clause}
 		GROUP BY sl.item, item.item_name, sl.batch, sl.uom
 		ORDER BY SUM(CASE WHEN sl.type = 'In' THEN sl.qty ELSE 0 END) - SUM(CASE WHEN sl.type = 'Out' THEN sl.qty ELSE 0 END) DESC
 		""",

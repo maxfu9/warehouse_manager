@@ -11,6 +11,14 @@
  "engine": "InnoDB",
  "fields": [
   {
+   "fieldname": "scan_session",
+   "fieldtype": "Link",
+   "label": "Scan Session",
+   "options": "Warehouse Scan Session",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
    "fieldname": "item",
    "fieldtype": "Link",
    "in_list_view": 1,

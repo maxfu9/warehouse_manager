@@ -7,6 +7,7 @@
  "docstatus": 0,
  "doctype": "Dashboard Chart",
  "document_type": "Stock Log",
+ "filters_json": "[[\"Stock Log\",\"movement_status\",\"!=\",\"Cancelled\"]]",
  "idx": 0,
  "is_public": 1,
  "is_standard": 1,

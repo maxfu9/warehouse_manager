@@ -39,7 +39,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Operations",
-   "link_count": 3,
+   "link_count": 5,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -72,11 +72,17 @@
    "type": "Link"
   },
   {
+   "type": "Link", "label": "Carton QR", "link_type": "DocType", "link_to": "Carton QR", "hidden": 0
+  },
+  {
+   "type": "Link", "label": "Scan Sessions", "link_type": "DocType", "link_to": "Warehouse Scan Session", "hidden": 0
+  },
+  {
    "description": "Operational views for inventory, movement, batches, and customer dispatch.",
    "hidden": 0,
    "is_query_report": 0,
    "label": "Reports",
-   "link_count": 5,
+   "link_count": 6,
    "link_type": "Report",
    "onboard": 0,
    "type": "Card Break"
@@ -125,6 +131,9 @@
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "type": "Link", "label": "Warehouse Exceptions", "link_type": "Report", "link_to": "Warehouse Exceptions", "is_query_report": 1, "hidden": 0
   },
   {
    "description": "Admin controls for warehouse rules and scanning defaults.",
