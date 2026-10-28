@@ -54,6 +54,8 @@ doctype_js = {
 	"Manager Scanner Settings": "public/js/manager_scanner_settings.js",
 	"Delivery Note": "public/js/delivery_note.js",
 	"Stock Log": "public/js/stock_log.js",
+	"Work Order": "public/js/production_labels.js",
+	"Stock Entry": "public/js/production_labels.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -102,9 +104,9 @@ jinja = {
 # ------------
 
 # before_install = "warehouse_manager.install.before_install"
-after_install = ["warehouse_manager.setup.sync_standard_navigation", "warehouse_manager.setup.setup_v16_desk"]
+after_install = ["warehouse_manager.production.setup_production_fields", "warehouse_manager.setup.sync_standard_navigation", "warehouse_manager.setup.setup_v16_desk"]
 
-after_migrate = ["warehouse_manager.setup.sync_standard_navigation", "warehouse_manager.setup.setup_v16_desk"]
+after_migrate = ["warehouse_manager.production.setup_production_fields", "warehouse_manager.setup.sync_standard_navigation", "warehouse_manager.setup.setup_v16_desk"]
 
 # Uninstallation
 # ------------
@@ -158,13 +160,18 @@ after_migrate = ["warehouse_manager.setup.sync_standard_navigation", "warehouse_
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"Stock Entry": {
+		"on_submit": "warehouse_manager.production.create_manufacture_batch",
+		"before_cancel": "warehouse_manager.production.validate_manufacture_cancellation",
+		"on_cancel": "warehouse_manager.production.cancel_manufacture_batch",
+	}
+}
+
+override_doctype_dashboards = {
+	"Work Order": "warehouse_manager.production.work_order_dashboard",
+	"Stock Entry": "warehouse_manager.production.stock_entry_dashboard",
+}
 
 # Scheduled Tasks
 # ---------------

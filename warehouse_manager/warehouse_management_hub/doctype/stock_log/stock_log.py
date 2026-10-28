@@ -127,6 +127,8 @@ class StockLog(Document):
 			return
 		if self.is_status_only_update():
 			return
+		if frappe.db.exists("Batch QR Maker Item", {"carton_no": self.carton_no, "status": "Cancelled"}):
+			frappe.throw(_("Label {0} was cancelled. Generate a new label before receiving this carton.").format(self.carton_no))
 
 		carton = frappe.db.get_value(
 			"Carton QR",

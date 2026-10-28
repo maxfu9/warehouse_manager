@@ -8,7 +8,7 @@ def execute(filters=None):
 	data = get_data(filters)
 	chart = get_chart(data)
 	report_summary = get_report_summary(data)
-	return columns, data, None, chart, report_summary
+	return columns, data, _("Dispatch history counts cartons from saved movements. Missing movements are listed in Warehouse Exceptions."), chart, report_summary
 
 def get_columns():
 	return [
@@ -16,8 +16,7 @@ def get_columns():
 		{"label": _("Item"), "fieldname": "item", "fieldtype": "Link", "options": "Item", "width": 150},
 		{"label": _("Item Name"), "fieldname": "item_name", "fieldtype": "Data", "width": 180},
 		{"label": _("Delivery Note"), "fieldname": "delivery_note", "fieldtype": "Link", "options": "Delivery Note", "width": 150},
-		{"label": _("Total Qty Shipped"), "fieldname": "total_qty", "fieldtype": "Float", "width": 130},
-		{"label": _("Carton Count"), "fieldname": "carton_count", "fieldtype": "Int", "width": 110},
+		{"label": _("Dispatched (CTN)"), "fieldname": "carton_count", "fieldtype": "Int", "width": 140},
 		{"label": _("Latest Ship Date"), "fieldname": "latest_date", "fieldtype": "Date", "width": 130},
 		{"label": _("Latest Ship Time"), "fieldname": "latest_time", "fieldtype": "Datetime", "width": 155}
 	]
@@ -51,7 +50,6 @@ def get_data(filters):
 			sl.item,
 			item.item_name,
 			sl.delivery_note,
-			SUM(sl.qty) as total_qty,
 			COUNT(DISTINCT sl.carton_no) as carton_count,
 			MAX(DATE(sl.scan_time)) as latest_date,
 			MAX(sl.scan_time) as latest_time
@@ -74,13 +72,16 @@ def get_chart(data):
 	if not data:
 		return None
 
-	top_customers = sorted(data, key=lambda x: x.get("total_qty", 0), reverse=True)[:5]
+	by_customer = {}
+	for row in data:
+		customer = row.get("customer") or _("Unknown")
+		by_customer[customer] = by_customer.get(customer, 0) + (row.get("carton_count") or 0)
+	top_customers = sorted(by_customer.items(), key=lambda row: row[1], reverse=True)[:5]
 	return {
 		"data": {
-			"labels": [row.get("customer") or _("Unknown") for row in top_customers],
+			"labels": [customer for customer, count in top_customers],
 			"datasets": [
-				{"name": _("Shipped Qty"), "values": [row.get("total_qty") or 0 for row in top_customers]},
-				{"name": _("Cartons"), "values": [row.get("carton_count") or 0 for row in top_customers]},
+				{"name": _("Dispatched (CTN)"), "values": [count for customer, count in top_customers]},
 			],
 		},
 		"type": "bar",
@@ -91,10 +92,8 @@ def get_report_summary(data):
 	if not data:
 		return []
 
-	total_qty = sum(row.get("total_qty") or 0 for row in data)
 	total_cartons = sum(row.get("carton_count") or 0 for row in data)
 	return [
 		{"value": len({row.get('customer') for row in data if row.get('customer')}), "indicator": "Blue", "label": _("Customers"), "datatype": "Int"},
-		{"value": total_qty, "indicator": "Orange", "label": _("Shipped Qty"), "datatype": "Float"},
-		{"value": total_cartons, "indicator": "Green", "label": _("Shipped Cartons"), "datatype": "Int"},
+		{"value": total_cartons, "indicator": "Green", "label": _("Dispatched (CTN)"), "datatype": "Int"},
 	]

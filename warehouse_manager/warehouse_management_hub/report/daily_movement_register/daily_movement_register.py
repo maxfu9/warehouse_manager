@@ -21,7 +21,7 @@ def get_columns():
 		{"label": _("Supplier"), "fieldname": "supplier", "fieldtype": "Link", "options": "Supplier", "width": 150},
 		{"label": _("Delivery Note"), "fieldname": "delivery_note", "fieldtype": "Link", "options": "Delivery Note", "width": 150},
 		{"label": _("Source Type"), "fieldname": "source_type", "fieldtype": "Data", "width": 110},
-		{"label": _("Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 80},
+		{"label": _("CTN"), "fieldname": "carton_count", "fieldtype": "Int", "width": 80},
 		{"label": _("Party"), "fieldname": "party", "fieldtype": "Data", "width": 150}
 	]
 
@@ -75,7 +75,7 @@ def get_data(filters):
 			supplier,
 			delivery_note,
 			source_type,
-			qty,
+			1 AS carton_count,
 			COALESCE(customer, supplier, source_type) as party
 		FROM `tabStock Log`
 		WHERE IFNULL(movement_status, 'Logged') != 'Cancelled' {where_clause}
@@ -116,9 +116,9 @@ def get_report_summary(data):
 
 	inbound = sum(1 for row in data if row.get("type") == "In")
 	outbound = sum(1 for row in data if row.get("type") == "Out")
-	total_qty = sum(row.get("qty") or 0 for row in data)
+	unique_items = len({row.get("item") for row in data})
 	return [
-		{"value": inbound, "indicator": "Green", "label": _("Inbound Scans"), "datatype": "Int"},
-		{"value": outbound, "indicator": "Blue", "label": _("Outbound Scans"), "datatype": "Int"},
-		{"value": total_qty, "indicator": "Orange", "label": _("Movement Qty"), "datatype": "Float"},
+		{"value": inbound, "indicator": "Green", "label": _("Received (CTN)"), "datatype": "Int"},
+		{"value": outbound, "indicator": "Blue", "label": _("Dispatched (CTN)"), "datatype": "Int"},
+		{"value": unique_items, "indicator": "Orange", "label": _("Unique Items"), "datatype": "Int"},
 	]

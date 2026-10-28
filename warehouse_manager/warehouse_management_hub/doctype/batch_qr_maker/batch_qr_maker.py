@@ -81,7 +81,8 @@ class BatchQRMaker(Document):
 		# The method has already passed document permission checks; saving with
 		# ignore_permissions lets it update generated child rows atomically.
 		self.save(ignore_permissions=True)
-		frappe.db.commit()
+		# Let the request commit. Manufacturing hooks must remain in the same
+		# transaction as their Stock Entry, including any later validation errors.
 		return _("Generated {0} carton records").format(self.no_of_cartons)
 
 	@frappe.whitelist()
@@ -124,7 +125,7 @@ class BatchQRMaker(Document):
 		self.save(ignore_permissions=True)
 		frappe.db.commit()
 		
-		return _("Batch closed. Results: {0} In Stock, {1} Dispatched, {2} Cancelled.").format(scanned, dispatched, cancelled)
+		return _("Batch closed: {0} received CTN, {1} dispatched CTN, {2} in stock CTN, {3} cancelled labels.").format(scanned, dispatched, max(scanned - dispatched, 0), cancelled)
 
 	def on_cancel(self):
 		"""

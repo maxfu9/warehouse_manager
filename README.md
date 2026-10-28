@@ -50,6 +50,47 @@ Reload Desk in the browser to refresh navigation. To repair only the Desk
 records, run `bench --site <site-name> execute warehouse_manager.setup.setup_v16_desk`.
 Frappe v15 continues to use the workspace; the v16 Desk setup is skipped there.
 
+### Carton label printing
+
+**Print Labels** offers 2, 4, 6 or 8 labels per A4 sheet with 5mm printer
+margins, remembers the last choice, and supports Preview and Print. QR sizes
+are 84, 72, 50 and 36mm respectively, including their quiet zones. Each label
+has a carton ID, adaptive product name, and packing contents marked `/ CTN`.
+Rounded inner borders frame each label; dashed outer guides and corner crop
+marks show the cut positions on every occupied label cell.
+Cancelled labels are excluded. Use actual size / 100% in the printer dialog.
+
+The HTML source and JSON export must stay identical. After editing the HTML,
+run `node scripts/sync_label_template.cjs`. Migration refreshes the live standard
+Print Format. A synthetic PDF can be checked with
+`bench --site <site-name> execute warehouse_manager.tests.label_preview.render_samples`.
+
+### Work Order production labels
+
+On a Work Order, **Warehouse Labels > Allow Carton Labels** permits carton batches.
+Each **Manufacture Stock Entry** has a **Generate Carton Labels** checkbox,
+unchecked by default. Check it only for complete packed cartons; leave it off
+for parts or intermediate production. Submitting a checked entry creates and
+submits one Batch QR Maker linked to that Work Order and Stock Entry. Each completed
+finished-good unit in the entry's stock UOM creates one carton QR; partial
+production entries get separate batches. Fractional carton counts are rejected.
+Scrap and process loss do not generate labels.
+
+Qty per Carton and Contents UOM are optional label information (default quantity
+1); they never convert the carton count. Generated cartons remain Draft until
+inbound scanning. Retrying the same entry reuses its batch. Cancelling manufacture
+cancels unused labels; received/dispatched cartons must be reversed first.
+Existing submitted manufacturing entries are not automatically backfilled.
+
+Both Work Order and Stock Entry show a Warehouse connection to their batches.
+
+Warehouse stock is measured in **cartons (CTN)**. Inventory and batch reports
+use current Carton QR status, with batch-table fallback where tracking records
+are missing. Packing quantity stays on labels and carton records for reference;
+it does not determine available carton counts. Cancelled labels are excluded.
+Movement and customer reports describe recorded history; missing historical
+dispatches are flagged as exceptions rather than fabricated.
+
 ### Saved scanner sessions and exceptions
 
 New scans are linked to an open **Warehouse Scan Session**, independently for

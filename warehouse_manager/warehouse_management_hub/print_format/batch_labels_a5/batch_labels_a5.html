@@ -1,136 +1,219 @@
-<div class="labels-container">
-    {% for item in doc.items %}
-        {% if item.status != 'Cancelled' and item.carton_no %}
-            {% set carton = frappe.get_doc('Carton QR', item.carton_no) %}
-            {% set item_name = frappe.db.get_value('Item', carton.item, 'item_name') or carton.item %}
-
-            <div class="label-box">
-                <table class="label-grid" cellspacing="0" cellpadding="0">
-                    <tr>
-                        <td class="label-id">{{ carton.carton_no }}</td>
-                    </tr>
-                    <tr>
-                        <td class="qr-cell">
-                            <div class="qr-box">
-                                <img
-                                    src="{{ generate_qr_png_data_uri(carton.signed_data or carton.name, 10) }}"
-                                    alt="{{ carton.carton_no }}"
-                                    class="qr-image"
-                                >
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="product-block">
-                            <div class="product-name">{{ item_name }}</div>
-                            <div class="product-qty">{{ carton.qty }}{% if carton.uom %} {{ carton.uom }}{% endif %}</div>
-                        </td>
-                    </tr>
-                </table>
+{% set per_page = (print_settings | default({})).get('warehouse_labels_per_page', 2) | int %}
+{% if per_page not in [2, 4, 6, 8] %}{% set per_page = 2 %}{% endif %}
+{% set layouts = {
+    2: {'columns': 1, 'width': 200, 'height': 143, 'qr': 84, 'qr_top': 20, 'inset': 6, 'id_top': 4, 'id_height': 12, 'id_font': 24, 'rule': 18, 'name_top': 106, 'name_height': 24, 'name_font': 34, 'name_medium': 28, 'name_long': 22, 'name_extra': 18, 'qty_bottom': 4, 'qty_height': 8, 'qty_font': 18, 'suffix_font': 11},
+    4: {'columns': 2, 'width': 100, 'height': 143, 'qr': 72, 'qr_top': 17, 'inset': 4, 'id_top': 4, 'id_height': 8, 'id_font': 14, 'rule': 14, 'name_top': 94, 'name_height': 35, 'name_font': 26, 'name_medium': 21, 'name_long': 16, 'name_extra': 12, 'qty_bottom': 4, 'qty_height': 8, 'qty_font': 16, 'suffix_font': 10},
+    6: {'columns': 2, 'width': 100, 'height': 95.333, 'qr': 50, 'qr_top': 14, 'inset': 4, 'id_top': 3, 'id_height': 6, 'id_font': 12, 'rule': 11, 'name_top': 65, 'name_height': 20, 'name_font': 20, 'name_medium': 16, 'name_long': 12, 'name_extra': 10, 'qty_bottom': 3, 'qty_height': 6, 'qty_font': 12, 'suffix_font': 8},
+    8: {'columns': 2, 'width': 100, 'height': 71.5, 'qr': 36, 'qr_top': 12, 'inset': 4, 'id_top': 2, 'id_height': 6, 'id_font': 11, 'rule': 10, 'name_top': 49, 'name_height': 14, 'name_font': 16, 'name_medium': 13, 'name_long': 10, 'name_extra': 8, 'qty_bottom': 2, 'qty_height': 5, 'qty_font': 10, 'suffix_font': 8}
+} %}
+{% set layout = layouts[per_page] %}
+{% set labels = doc.items | rejectattr('status', 'equalto', 'Cancelled') | selectattr('carton_no') | list %}
+{% for sheet in labels | batch(per_page) %}
+<div class="labels-sheet{% if loop.last %} labels-sheet-last{% endif %}">
+    {% for row in sheet %}
+        {% set carton = frappe.get_doc('Carton QR', row.carton_no) %}
+        {% set item_name = frappe.db.get_value('Item', carton.item, 'item_name') or carton.item %}
+        {% set carton_id = carton.carton_no or carton.name %}
+        {% set packed_qty = carton.qty or 0 %}
+        <div class="label-box">
+            <div class="label-cut-guide" aria-hidden="true">&#160;</div>
+            <div class="label-outline" aria-hidden="true">&#160;</div>
+            <span class="crop-mark crop-top-left" aria-hidden="true">&#160;</span>
+            <span class="crop-mark crop-top-right" aria-hidden="true">&#160;</span>
+            <span class="crop-mark crop-bottom-left" aria-hidden="true">&#160;</span>
+            <span class="crop-mark crop-bottom-right" aria-hidden="true">&#160;</span>
+            <div class="label-id{% if carton_id | length > 45 %} label-id-long{% elif carton_id | length > 28 %} label-id-medium{% endif %}">{{ carton_id | e }}</div>
+            <div class="label-divider"></div>
+            <div class="qr-box">
+                <img src="{{ generate_qr_png_data_uri(carton.signed_data or carton.name, 10) }}" alt="{{ carton_id | e }}" class="qr-image" width="{{ (layout.qr * 96 / 25.4) | round | int }}" height="{{ (layout.qr * 96 / 25.4) | round | int }}">
             </div>
-        {% endif %}
+            <div class="product-block">
+                <div class="product-name{% if item_name | length > 130 %} product-name-extra-long{% elif item_name | length > 80 %} product-name-long{% elif item_name | length > 45 %} product-name-medium{% endif %}">{{ item_name | e }}</div>
+            </div>
+            <div class="product-qty">
+                {% if packed_qty == (packed_qty | int) %}{{ packed_qty | int }}{% else %}{{ packed_qty }}{% endif %}{% if carton.uom %} {{ carton.uom | e }}{% endif %}<span class="contents-suffix"> / CTN</span>
+            </div>
+        </div>
     {% endfor %}
 </div>
+{% endfor %}
 
 <style>
-@page {
-    size: A4;
-    margin: 0;
+@page { size: A4 portrait; margin: 5mm; }
+html, body { margin: 0; padding: 0; background: #fff; }
+.print-format {
+    width: 200mm !important;
+    padding: 0 !important;
+    margin-top: 5mm;
+    margin-bottom: 5mm;
+    margin-left: 5mm;
+    margin-right: 5mm;
+    page-size: A4;
+    orientation: Portrait;
+    min-height: 0 !important;
+    max-width: none !important;
 }
-
-body {
-    margin: 0;
+.labels-sheet {
+    width: 200mm;
+    height: 286mm;
+    margin: 0 auto;
     padding: 0;
-    background: #ffffff;
-    font-family: Arial, "Helvetica Neue", sans-serif;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    page-break-after: always;
+    break-after: page;
+    font-family: "Helvetica Neue", "Liberation Sans", sans-serif;
+    color: #000;
 }
-
-.labels-container {
-    width: 210mm;
-    margin: 0 auto;
-}
-
+.labels-sheet-last { page-break-after: auto; break-after: auto; }
 .label-box {
-    width: 210mm;
-    height: 148.5mm;
+    position: relative;
+    float: left;
+    width: {{ layout.width }}mm;
+    height: {{ layout.height }}mm;
     box-sizing: border-box;
-    padding: 6mm 10mm 5mm;
-    background: #ffffff;
+    background: #fff;
     page-break-inside: avoid;
-    border-bottom: 1px solid #d4d4d4;
+    break-inside: avoid;
 }
-
-.label-grid {
-    width: 100%;
-    height: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
+.label-cut-guide,
+.label-outline {
+    position: absolute;
+    box-sizing: border-box;
+    font-size: 0;
+    line-height: 0;
+    pointer-events: none;
 }
-
+.label-cut-guide {
+    top: 0;
+    left: 0;
+    width: {{ layout.width }}mm;
+    height: {{ layout.height }}mm;
+    border: 1px dashed #999;
+}
+.label-outline {
+    top: 1.5mm;
+    left: 1.5mm;
+    width: {{ layout.width - 3 }}mm;
+    height: {{ layout.height - 3 }}mm;
+    border: 1px solid #555;
+    border-radius: 3mm;
+}
+.crop-mark {
+    position: absolute;
+    width: 2.5mm;
+    height: 2.5mm;
+    box-sizing: border-box;
+    font-size: 0;
+    line-height: 0;
+    pointer-events: none;
+}
+.crop-top-left { top: 0; left: 0; border-top: 0.3mm solid #333; border-left: 0.3mm solid #333; }
+.crop-top-right { top: 0; right: 0; border-top: 0.3mm solid #333; border-right: 0.3mm solid #333; }
+.crop-bottom-left { bottom: 0; left: 0; border-bottom: 0.3mm solid #333; border-left: 0.3mm solid #333; }
+.crop-bottom-right { bottom: 0; right: 0; border-bottom: 0.3mm solid #333; border-right: 0.3mm solid #333; }
 .label-id {
-    height: 16mm;
-    font-size: 24pt;
-    font-weight: 900;
-    line-height: 1;
-    letter-spacing: -0.6px;
-    color: #000000;
+    position: absolute;
+    top: {{ layout.id_top }}mm;
+    left: {{ layout.inset }}mm;
+    right: {{ layout.inset }}mm;
+    height: {{ layout.id_height }}mm;
     text-align: center;
-    vertical-align: top;
-    padding: 0 0 2mm;
+    font-family: "Courier New", "Liberation Mono", monospace;
+    font-size: {{ layout.id_font }}pt;
+    font-weight: 700;
+    line-height: 1.12;
+    letter-spacing: 0.3pt;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
 }
-
-.qr-cell {
-    height: 92mm;
-    vertical-align: middle;
-    text-align: center;
+.label-id-medium { font-size: {{ layout.id_font * 0.65 }}pt; }
+.label-id-long { font-size: {{ layout.id_font * 0.46 }}pt; word-break: break-all; }
+.label-divider {
+    position: absolute;
+    top: {{ layout.rule }}mm;
+    left: {{ layout.inset }}mm;
+    right: {{ layout.inset }}mm;
+    border-top: 1px solid #d5d5d5;
 }
-
 .qr-box {
-    width: 78mm;
-    height: 78mm;
-    margin: 0 auto;
-    background: #ffffff;
+    position: absolute;
+    top: {{ layout.qr_top }}mm;
+    left: 50%;
+    margin-left: -{{ layout.qr / 2 }}mm;
+    width: {{ layout.qr }}mm;
+    height: {{ layout.qr }}mm;
+    background: #fff;
     line-height: 0;
 }
-
 .qr-image {
-    width: 78mm;
-    height: 78mm;
     display: block;
-    margin: 0 auto;
+    width: {{ layout.qr }}mm !important;
+    height: {{ layout.qr }}mm !important;
+    max-width: none !important;
+    margin: 0;
+    padding: 0;
+    border: 0;
 }
-
 .product-block {
-    height: 26mm;
+    position: absolute;
+    top: {{ layout.name_top }}mm;
+    left: {{ layout.inset }}mm;
+    width: {{ layout.width - layout.inset * 2 }}mm;
+    height: {{ layout.name_height }}mm;
+    display: table;
+    table-layout: fixed;
     text-align: center;
-    vertical-align: top;
-    padding-top: 1mm;
 }
-
 .product-name {
-    font-size: 35pt;
+    display: table-cell;
+    vertical-align: middle;
+    font-family: "Arial Narrow", "Liberation Sans Narrow", "Helvetica Neue", sans-serif;
+    font-size: {{ layout.name_font }}pt;
     font-weight: 900;
-    line-height: 1;
+    line-height: 1.04;
     text-transform: uppercase;
-    letter-spacing: -0.5px;
-    color: #000000;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
 }
-
+.product-name-medium { font-size: {{ layout.name_medium }}pt; }
+.product-name-long { font-size: {{ layout.name_long }}pt; }
+.product-name-extra-long { font-size: {{ layout.name_extra }}pt; }
 .product-qty {
-    margin-top: 1.2mm;
-    font-size: 25pt;
-    font-weight: 800;
-    line-height: 1.1;
+    position: absolute;
+    bottom: {{ layout.qty_bottom }}mm;
+    left: {{ layout.inset }}mm;
+    right: {{ layout.inset }}mm;
+    height: {{ layout.qty_height }}mm;
+    text-align: center;
+    font-size: {{ layout.qty_font }}pt;
+    font-weight: 700;
+    line-height: {{ layout.qty_height }}mm;
     text-transform: uppercase;
-    color: #000000;
 }
-
+.contents-suffix { font-size: {{ layout.suffix_font }}pt; font-weight: 400; }
+@media screen {
+    .print-format { margin: 0 auto !important; }
+    .labels-sheet { box-shadow: 0 0 0 1px #dedede; margin-bottom: 12px; }
+}
 @media print {
-    .label-box:nth-child(2n) {
-        page-break-after: always;
-    }
+    .print-format { margin: 0 !important; }
+    .labels-sheet { margin: 0; box-shadow: none; }
 }
 </style>
+
+<script>
+// Frappe's preview PDF link omits custom print settings; retain the layout.
+(function () {
+    function preserveLabelLayout() {
+        document.querySelectorAll('a[href*="frappe.utils.print_format.download_pdf"]').forEach(function (link) {
+            var url = new URL(link.href, window.location.href);
+            url.searchParams.set('settings', JSON.stringify({warehouse_labels_per_page: {{ per_page }}}));
+            link.href = url.toString();
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', preserveLabelLayout);
+    } else {
+        preserveLabelLayout();
+    }
+})();
+</script>

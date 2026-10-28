@@ -49,6 +49,32 @@
    "allow_on_submit": 1
   },
   {
+   "fieldname": "production_reference_section",
+   "fieldtype": "Section Break",
+   "label": "Production Reference",
+   "depends_on": "eval:doc.work_order"
+  },
+  {
+   "fieldname": "work_order",
+   "fieldtype": "Link",
+   "label": "Work Order",
+   "options": "Work Order",
+   "read_only": 1,
+   "no_copy": 1,
+   "search_index": 1,
+   "description": "Work Order whose completed production generated these carton labels."
+  },
+  {
+   "fieldname": "production_stock_entry",
+   "fieldtype": "Link",
+   "label": "Manufacture Stock Entry",
+   "options": "Stock Entry",
+   "read_only": 1,
+   "no_copy": 1,
+   "unique": 1,
+   "description": "One automatic batch per submitted manufacturing entry. Produced quantity equals carton count."
+  },
+  {
    "fieldname": "carton_setup_section",
    "fieldtype": "Section Break",
    "label": "Carton Setup"
@@ -96,8 +122,8 @@
   {
    "fieldname": "scanned_cartons",
    "fieldtype": "Int",
-   "description": "Cartons currently received into stock from this batch.",
-   "label": "Scanned (In Stock)",
+   "description": "Received cartons, including those already dispatched. This is not current stock.",
+   "label": "Received (CTN)",
    "read_only": 1,
    "allow_on_submit": 1
   },
@@ -109,7 +135,7 @@
    "fieldname": "remaining_stock",
    "fieldtype": "Int",
    "description": "Cartons still available after dispatches from this batch.",
-   "label": "Remaining Stock",
+   "label": "In Stock (CTN)",
    "read_only": 1,
    "allow_on_submit": 1
   },
@@ -121,7 +147,7 @@
    "fieldname": "dispatched_cartons",
    "fieldtype": "Int",
    "description": "Cartons already dispatched from this batch.",
-   "label": "Dispatched",
+   "label": "Dispatched (CTN)",
    "read_only": 1,
    "allow_on_submit": 1
   },
@@ -133,7 +159,7 @@
    "fieldname": "cancelled_cartons",
    "fieldtype": "Int",
    "description": "Labels cancelled or removed before reaching stock.",
-   "label": "Cancelled",
+   "label": "Cancelled Labels",
    "read_only": 1,
    "allow_on_submit": 1
   },
@@ -148,8 +174,7 @@
    "fieldtype": "Table",
    "label": "Cartons",
    "options": "Batch QR Maker Item",
-   "read_only": 1,
-   "show_total_row": 1
+   "read_only": 1
   },
   {
    "description": "Original batch reference when this record is created as an amendment.",

@@ -15,6 +15,7 @@ def sync_standard_navigation():
 	for name in ("top_5_products_in_stock", "customer_dispatch_share", "weekly_movement_trend"):
 		frappe.reload_doc("warehouse_management_hub", "dashboard_chart", name, force=True)
 	frappe.reload_doc("warehouse_management_hub", "workspace", "europlast_stock_log", force=True)
+	frappe.reload_doc("warehouse_management_hub", "print_format", "batch_labels_a5", force=True)
 
 
 def _save_standard_doc(doctype, name, values):

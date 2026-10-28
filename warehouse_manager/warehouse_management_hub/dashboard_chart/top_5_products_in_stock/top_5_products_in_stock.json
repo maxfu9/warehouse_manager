@@ -1,13 +1,14 @@
 {
  "based_on": "",
  "chart_name": "Top 5 Products in Stock",
- "chart_type": "Group By",
+ "chart_type": "Report",
+ "report_name": "EuroPlast Inventory Summary",
  "color": "#28a745",
  "creation": "2026-03-30 09:36:00",
  "docstatus": 0,
  "doctype": "Dashboard Chart",
  "document_type": "Carton QR",
- "filters_json": "[[\"Carton QR\", \"status\", \"=\", \"In Stock\"]]",
+ "filters_json": "{}",
  "group_by_based_on": "item",
  "group_by_type": "Count",
  "idx": 0,
@@ -22,7 +23,7 @@
  "time_interval": "Daily",
  "timeseries": 0,
  "timespan": "Last Year",
- "type": "Donut",
- "use_report_chart": 0,
+ "type": "Bar",
+ "use_report_chart": 1,
  "y_axis": []
 }

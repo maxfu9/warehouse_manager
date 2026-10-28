@@ -1,77 +1,46 @@
 import frappe
 from frappe import _
 from frappe.utils import date_diff, nowdate
-from warehouse_manager.stock_queries import latest_active_log
+
+from warehouse_manager.stock_queries import current_cartons_query
+
 
 def execute(filters=None):
-	filters = filters or {}
-	columns = get_columns()
-	data = get_data(filters)
-	return columns, data
+	return get_columns(), get_data(filters or {})
+
 
 def get_columns():
 	return [
-		{"label": _("Carton No"), "fieldname": "carton_no", "fieldtype": "Data", "width": 140},
-		{"label": _("Batch"), "fieldname": "batch", "fieldtype": "Link", "options": "Batch QR Maker", "width": 140},
+		{"label": _("Carton No"), "fieldname": "carton_no", "fieldtype": "Data", "width": 160},
+		{"label": _("Batch"), "fieldname": "batch", "fieldtype": "Link", "options": "Batch QR Maker", "width": 160},
 		{"label": _("Item"), "fieldname": "item", "fieldtype": "Link", "options": "Item", "width": 150},
 		{"label": _("Item Name"), "fieldname": "item_name", "fieldtype": "Data", "width": 180},
-		{"label": _("Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 80},
-		{"label": _("UOM"), "fieldname": "uom", "fieldtype": "Link", "options": "UOM", "width": 80},
-		{"label": _("Inbound Time"), "fieldname": "inbound_time", "fieldtype": "Datetime", "width": 155},
-		{"label": _("Source Type"), "fieldname": "source_type", "fieldtype": "Data", "width": 110},
+		{"label": _("CTN"), "fieldname": "carton_count", "fieldtype": "Int", "width": 80},
+		{"label": _("Inbound Time"), "fieldname": "inbound_time", "fieldtype": "Datetime", "width": 170},
+		{"label": _("Source"), "fieldname": "source_type", "fieldtype": "Data", "width": 120},
 		{"label": _("Supplier"), "fieldname": "supplier", "fieldtype": "Link", "options": "Supplier", "width": 150},
-		{"label": _("Customer"), "fieldname": "customer", "fieldtype": "Link", "options": "Customer", "width": 150},
-		{"label": _("Aging (Days)"), "fieldname": "aging", "fieldtype": "Int", "width": 100}
+		{"label": _("Return Customer"), "fieldname": "customer", "fieldtype": "Link", "options": "Customer", "width": 150},
+		{"label": _("Age (Days)"), "fieldname": "aging", "fieldtype": "Int", "width": 100},
 	]
 
+
 def get_data(filters):
-	conditions = []
-	params = {}
-
-	if filters.get("item"):
-		conditions.append("sl.item = %(item)s")
-		params["item"] = filters.get("item")
-	if filters.get("batch"):
-		conditions.append("sl.batch = %(batch)s")
-		params["batch"] = filters.get("batch")
-	if filters.get("source_type"):
-		conditions.append("sl.source_type = %(source_type)s")
-		params["source_type"] = filters.get("source_type")
-	if filters.get("from_date"):
-		conditions.append("DATE(sl.scan_time) >= %(from_date)s")
-		params["from_date"] = filters.get("from_date")
-	if filters.get("to_date"):
-		conditions.append("DATE(sl.scan_time) <= %(to_date)s")
-		params["to_date"] = filters.get("to_date")
-
-	where_clause = f"AND {' AND '.join(conditions)}" if conditions else ""
-
-	data = frappe.db.sql(
-		f"""
-		SELECT 
-			sl.carton_no,
-			sl.batch,
-			sl.item,
-			item.item_name,
-			sl.qty,
-			sl.uom,
-			sl.scan_time as inbound_time,
-			sl.source_type,
-			sl.supplier,
-			sl.customer
-		FROM `tabStock Log` sl
-		LEFT JOIN `tabItem` item ON item.name = sl.item
-		WHERE sl.type = 'In'
-		{where_clause}
-		AND {latest_active_log('sl')}
-		ORDER BY sl.scan_time ASC
-		""",
-		params,
-		as_dict=1,
-	)
-
-	today = nowdate()
-	for d in data:
-		d.aging = date_diff(today, d.inbound_time)
-	
-	return data
+	conditions, params = ["state.status = 'In Stock'"], {}
+	for field in ("item", "batch", "source_type"):
+		if filters.get(field):
+			conditions.append(f"state.{field} = %({field})s")
+			params[field] = filters[field]
+	for field, operator, suffix in (("from_date", ">=", ""), ("to_date", "<=", " 23:59:59.999999")):
+		if filters.get(field):
+			conditions.append(f"COALESCE(state.inbound_time, state.creation) {operator} %({field})s")
+			params[field] = f"{filters[field]}{suffix}"
+	rows = frappe.db.sql(f"""
+		SELECT state.*, item.item_name, 1 AS carton_count
+		FROM ({current_cartons_query()}) state
+		LEFT JOIN `tabItem` item ON item.name = state.item
+		WHERE {' AND '.join(conditions)}
+		ORDER BY COALESCE(state.inbound_time, state.creation), state.carton_no
+	""", params, as_dict=True)
+	for row in rows:
+		row.aging = date_diff(nowdate(), row.inbound_time or row.creation)
+	return rows

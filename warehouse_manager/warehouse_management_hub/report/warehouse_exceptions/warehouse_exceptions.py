@@ -17,6 +17,8 @@ def execute(filters=None):
 		SELECT sl.name AS stock_log, sl.carton_no, sl.item, sl.scan_time,
 			sl.delivery_note, c.status AS carton_status,
 			CASE WHEN c.name IS NULL THEN 'Missing Carton QR'
+				WHEN c.status = 'Dispatched' AND sl.type = 'In' THEN 'Missing Dispatch Log'
+				WHEN c.status = 'In Stock' AND sl.type = 'Out' THEN 'Missing Receipt Log'
 				WHEN c.status != CASE WHEN sl.type = 'In' THEN 'In Stock' ELSE 'Dispatched' END
 				THEN 'Carton Status Mismatch'
 				ELSE 'Inactive Stock' END AS issue
@@ -24,6 +26,14 @@ def execute(filters=None):
 		WHERE {latest_active_log('sl')} {where}
 		AND (c.name IS NULL OR c.status != CASE WHEN sl.type = 'In' THEN 'In Stock' ELSE 'Dispatched' END
 			OR (sl.type = 'In' AND COALESCE(sl.scan_time, sl.creation) < DATE_SUB(NOW(), INTERVAL %(aging_days)s DAY)))
+		UNION ALL
+		SELECT sl.name, sl.carton_no, sl.item, sl.scan_time, sl.delivery_note, c.status,
+			'Reused Cancelled Label'
+		FROM `tabStock Log` sl
+		INNER JOIN `tabCarton QR` c ON c.name = sl.carton_no
+		WHERE {latest_active_log('sl')} {where}
+		AND EXISTS (SELECT 1 FROM `tabBatch QR Maker Item` bi
+			WHERE bi.carton_no = sl.carton_no AND bi.status = 'Cancelled')
 		UNION ALL
 		SELECT sl.name, sl.carton_no, sl.item, sl.scan_time, sl.delivery_note, NULL,
 			CASE WHEN sl.type = 'Out' AND IFNULL(sl.customer, '') = '' THEN 'Missing Dispatch Customer'

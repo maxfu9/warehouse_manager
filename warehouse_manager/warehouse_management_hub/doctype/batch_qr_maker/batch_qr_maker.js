@@ -15,13 +15,8 @@ function apply_item_row_colors(frm) {
 	});
 }
 
-function render_items_qty_total(frm) {
-	const totalQty = (frm.doc.items || []).reduce((sum, item) => {
-		if (!item || item.status === 'Cancelled') {
-			return sum;
-		}
-		return sum + flt(item.qty || 0);
-	}, 0);
+function render_items_carton_total(frm) {
+	const totalCartons = (frm.doc.items || []).filter(item => item.status !== 'Cancelled').length;
 	const wrapper = frm.fields_dict.items.grid.wrapper;
 	wrapper.find('.batch-items-total-row').remove();
 
@@ -37,12 +32,69 @@ function render_items_qty_total(frm) {
 			font-weight:700;
 			color:var(--text-color);
 		">
-			<span style="opacity:.75;">Total Qty</span>
-			<span>${format_number(totalQty)}</span>
+			<span style="opacity:.75;">Total CTN (excluding cancelled labels)</span>
+			<span>${format_number(totalCartons)}</span>
 		</div>
 	`);
 
 	wrapper.find('.grid-body').after(totalRow);
+}
+
+function open_batch_label_print(frm, labelsPerPage, triggerPrint) {
+	const count = [2, 4, 6, 8].includes(Number(labelsPerPage)) ? Number(labelsPerPage) : 2;
+	localStorage.setItem('warehouse_labels_per_page', String(count));
+	const query = new URLSearchParams({
+		doctype: frm.doctype,
+		name: frm.docname,
+		format: 'Batch Labels A5',
+		no_letterhead: '1',
+		trigger_print: triggerPrint ? '1' : '0',
+		settings: JSON.stringify({warehouse_labels_per_page: count})
+	});
+	if (frappe.boot.lang) query.set('_lang', frappe.boot.lang);
+	window.location.href = frappe.urllib.get_full_url('/printview?' + query.toString());
+}
+
+function show_batch_label_options(frm) {
+	const saved = localStorage.getItem('warehouse_labels_per_page');
+	const descriptions = {
+		2: __('Large: 200 x 143 mm, 84 mm QR. Two labels per A4 sheet.'),
+		4: __('Medium: 100 x 143 mm, 72 mm QR. Four labels per A4 sheet.'),
+		6: __('Small: 100 x 95 mm, 50 mm QR. Six labels per A4 sheet.'),
+		8: __('Compact: 100 x 71 mm, 36 mm QR. Eight labels per A4 sheet.')
+	};
+	let dialog;
+	dialog = new frappe.ui.Dialog({
+		title: __('Print Carton Labels'),
+		fields: [
+			{fieldname: 'labels_per_page', fieldtype: 'Select', label: __('Labels per A4 Page'),
+				options: '2\n4\n6\n8', reqd: 1, default: ['2', '4', '6', '8'].includes(saved) ? saved : '2',
+				onchange() {
+					if (dialog && dialog.fields_dict.layout_info) updateDescription();
+				}},
+			{fieldname: 'layout_info', fieldtype: 'HTML'}
+		],
+		primary_action_label: __('Print'),
+		primary_action(values) {
+			dialog.hide();
+			open_batch_label_print(frm, values.labels_per_page, true);
+		},
+		secondary_action_label: __('Preview'),
+		secondary_action() {
+			const values = dialog.get_values();
+			if (!values) return;
+			dialog.hide();
+			open_batch_label_print(frm, values.labels_per_page, false);
+		}
+	});
+	function updateDescription() {
+		const count = Number(dialog.get_value('labels_per_page')) || 2;
+		dialog.fields_dict.layout_info.$wrapper.empty()
+			.append($('<p>').text(descriptions[count]))
+			.append($('<p class="text-muted">').text(__('Use A4 paper and actual size / 100%. Cancelled labels are excluded.')));
+	}
+	dialog.show();
+	updateDescription();
 }
 
 frappe.ui.form.on('Batch QR Maker', {
@@ -78,20 +130,8 @@ frappe.ui.form.on('Batch QR Maker', {
 
 		// SUBMITTED Status (Docstatus 1)
 		if (frm.doc.docstatus === 1) {
-			// Explicit Print Button for A5 Labels
-			frm.add_custom_button(__('Print Labels (A5)'), function() {
-				const url = frappe.urllib.get_full_url(
-					'/printview?doctype=' +
-						encodeURIComponent(frm.doctype) +
-						'&name=' +
-						encodeURIComponent(frm.docname) +
-						'&trigger_print=1' +
-						'&format=' +
-						encodeURIComponent('Batch Labels A5') +
-						'&no_letterhead=1' +
-						(frappe.boot.lang ? '&_lang=' + encodeURIComponent(frappe.boot.lang) : '')
-				);
-				window.location.href = url;
+			frm.add_custom_button(__('Print Labels'), function() {
+				show_batch_label_options(frm);
 			}).addClass('btn-primary').css({'background-color': '#1a73e8', 'color': 'white', 'font-weight': 'bold'});
 
 			if (frm.doc.status === 'Generated') {
@@ -112,11 +152,11 @@ frappe.ui.form.on('Batch QR Maker', {
 		}
 
 		apply_item_row_colors(frm);
-		render_items_qty_total(frm);
+		render_items_carton_total(frm);
 
 		if (frm.doc.docstatus > 0) {
 			frm.set_intro(
-				__('Stock Snapshot: {0} in stock, {1} remaining, {2} dispatched, {3} cancelled.', [
+				__('Stock Snapshot: {0} received CTN, {2} dispatched CTN, {1} in stock CTN, {3} cancelled labels.', [
 					scanned,
 					remaining,
 					dispatched,
@@ -138,6 +178,6 @@ frappe.ui.form.on('Batch QR Maker', {
 frappe.ui.form.on('Batch QR Maker Item', {
 	form_render: function(frm) {
 		apply_item_row_colors(frm);
-		render_items_qty_total(frm);
+		render_items_carton_total(frm);
 	}
 });

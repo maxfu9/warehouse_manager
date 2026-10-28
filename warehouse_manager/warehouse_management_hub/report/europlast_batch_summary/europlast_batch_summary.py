@@ -1,115 +1,65 @@
 import frappe
 from frappe import _
-from frappe.utils import date_diff, nowdate
-from warehouse_manager.stock_queries import active_log, latest_active_log
+
+from warehouse_manager.stock_queries import current_cartons_query
+
 
 def execute(filters=None):
-	filters = filters or {}
-	columns = get_columns()
-	data = get_data(filters)
-	chart = get_chart(data)
-	report_summary = get_report_summary(data)
-	return columns, data, None, chart, report_summary
+	data = get_data(filters or {})
+	return get_columns(), data, _("Counts are cartons, based on current carton/batch-row status."), get_chart(data), get_report_summary(data)
+
 
 def get_columns():
 	return [
-		{"label": _("Batch ID"), "fieldname": "batch", "fieldtype": "Link", "options": "Batch QR Maker", "width": 160},
-		{"label": _("Item"), "fieldname": "item", "fieldtype": "Link", "options": "Item", "width": 150},
+		{"label": _("Batch"), "fieldname": "batch", "fieldtype": "Link", "options": "Batch QR Maker", "width": 160},
+		{"label": _("Item"), "fieldname": "item", "fieldtype": "Link", "options": "Item", "width": 160},
 		{"label": _("Item Name"), "fieldname": "item_name", "fieldtype": "Data", "width": 180},
-		{"label": _("UOM"), "fieldname": "uom", "fieldtype": "Link", "options": "UOM", "width": 80},
-		{"label": _("Total In"), "fieldname": "total_in", "fieldtype": "Float", "width": 100},
-		{"label": _("Total Out"), "fieldname": "total_out", "fieldtype": "Float", "width": 100},
-		{"label": _("In Stock"), "fieldname": "balance", "fieldtype": "Float", "width": 100},
-		{"label": _("Cartons in Stock"), "fieldname": "carton_count", "fieldtype": "Int", "width": 110},
-		{"label": _("Last Movement"), "fieldname": "last_movement", "fieldtype": "Datetime", "width": 155},
-		{"label": _("Batch Age (Days)"), "fieldname": "aging_days", "fieldtype": "Int", "width": 110}
+		{"label": _("Received (CTN)"), "fieldname": "received_cartons", "fieldtype": "Int", "width": 140},
+		{"label": _("Dispatched (CTN)"), "fieldname": "dispatched_cartons", "fieldtype": "Int", "width": 140},
+		{"label": _("In Stock (CTN)"), "fieldname": "carton_count", "fieldtype": "Int", "width": 140},
+		{"label": _("Cancelled Labels"), "fieldname": "cancelled_cartons", "fieldtype": "Int", "width": 140},
+		{"label": _("Last Movement"), "fieldname": "last_movement", "fieldtype": "Datetime", "width": 170},
 	]
 
+
 def get_data(filters):
-	conditions = []
-	params = {}
-
-	if filters.get("batch"):
-		conditions.append("sl.batch = %(batch)s")
-		params["batch"] = filters.get("batch")
-	if filters.get("item"):
-		conditions.append("sl.item = %(item)s")
-		params["item"] = filters.get("item")
-	if filters.get("from_date"):
-		conditions.append("DATE(sl.scan_time) >= %(from_date)s")
-		params["from_date"] = filters.get("from_date")
-	if filters.get("to_date"):
-		conditions.append("DATE(sl.scan_time) <= %(to_date)s")
-		params["to_date"] = filters.get("to_date")
-
-	where_clause = f" AND {' AND '.join(conditions)}" if conditions else ""
-
-	data = frappe.db.sql(
-		f"""
-		SELECT 
-			sl.batch,
-			sl.item,
-			item.item_name,
-			sl.uom,
-			SUM(CASE WHEN sl.type = 'In' THEN sl.qty ELSE 0 END) as total_in,
-			SUM(CASE WHEN sl.type = 'Out' THEN sl.qty ELSE 0 END) as total_out,
-			COUNT(DISTINCT
-				CASE
-					WHEN latest.name IS NOT NULL AND latest.type = 'In' THEN latest.carton_no
-					ELSE NULL
-				END
-			) as carton_count,
-			MAX(sl.scan_time) as last_movement
-		FROM `tabStock Log` sl
-		LEFT JOIN `tabItem` item ON item.name = sl.item
-		LEFT JOIN (
-			SELECT cur.*
-			FROM `tabStock Log` cur
-			WHERE {latest_active_log('cur')}
-		) latest ON latest.carton_no = sl.carton_no
-			AND latest.item = sl.item
-			AND IFNULL(latest.batch, '') = IFNULL(sl.batch, '')
-			AND IFNULL(latest.uom, '') = IFNULL(sl.uom, '')
-		WHERE {active_log('sl')} {where_clause}
-		GROUP BY sl.batch, sl.item, item.item_name, sl.uom
+	conditions, params = ["IFNULL(state.batch, '') != ''"], {}
+	for field in ("item", "batch"):
+		if filters.get(field):
+			conditions.append(f"state.{field} = %({field})s")
+			params[field] = filters[field]
+	for field, operator, suffix in (("from_date", ">=", ""), ("to_date", "<=", " 23:59:59.999999")):
+		if filters.get(field):
+			conditions.append(f"state.last_movement {operator} %({field})s")
+			params[field] = f"{filters[field]}{suffix}"
+	return frappe.db.sql(f"""
+		SELECT state.batch, state.item, item.item_name,
+			COUNT(DISTINCT CASE WHEN state.status IN ('In Stock', 'Dispatched') THEN state.carton_no END) AS received_cartons,
+			COUNT(DISTINCT CASE WHEN state.status = 'Dispatched' THEN state.carton_no END) AS dispatched_cartons,
+			COUNT(DISTINCT CASE WHEN state.status = 'In Stock' THEN state.carton_no END) AS carton_count,
+			COUNT(DISTINCT CASE WHEN state.status = 'Cancelled' THEN state.carton_no END) AS cancelled_cartons,
+			MAX(state.last_movement) AS last_movement
+		FROM ({current_cartons_query()}) state LEFT JOIN `tabItem` item ON item.name = state.item
+		WHERE {' AND '.join(conditions)}
+		GROUP BY state.batch, state.item, item.item_name
 		ORDER BY last_movement DESC
-		""",
-		params,
-		as_dict=1,
-	)
+	""", params, as_dict=True)
 
-	today = nowdate()
-	for d in data:
-		d.balance = (d.total_in or 0) - (d.total_out or 0)
-		d.aging_days = date_diff(today, d.last_movement) if d.last_movement else 0
-	
-	return data
 
 def get_chart(data):
 	if not data:
 		return None
+	top = sorted(data, key=lambda row: row.carton_count, reverse=True)[:5]
+	return {"type": "bar", "colors": ["#10b981", "#3b82f6"], "data": {
+		"labels": [row.batch for row in top],
+		"datasets": [
+			{"name": _("In Stock (CTN)"), "values": [row.carton_count for row in top]},
+			{"name": _("Dispatched (CTN)"), "values": [row.dispatched_cartons for row in top]},
+		],
+	}}
 
-	top_batches = sorted(data, key=lambda x: x.get("balance", 0), reverse=True)[:5]
-	return {
-		"data": {
-			"labels": [row.get("batch") or _("No Batch") for row in top_batches],
-			"datasets": [
-				{"name": _("In Stock Qty"), "values": [row.get("balance") or 0 for row in top_batches]},
-				{"name": _("Cartons"), "values": [row.get("carton_count") or 0 for row in top_batches]},
-			],
-		},
-		"type": "bar",
-		"colors": ["#6366f1", "#14b8a6"],
-	}
 
 def get_report_summary(data):
-	if not data:
-		return []
-
-	total_balance = sum(row.get("balance") or 0 for row in data)
-	total_cartons = sum(row.get("carton_count") or 0 for row in data)
-	return [
-		{"value": len(data), "indicator": "Blue", "label": _("Batches"), "datatype": "Int"},
-		{"value": total_balance, "indicator": "Green", "label": _("In Stock Qty"), "datatype": "Float"},
-		{"value": total_cartons, "indicator": "Orange", "label": _("Cartons in Stock"), "datatype": "Int"},
-	]
+	return [{"value": sum(row.get(field, 0) for row in data), "label": _(label), "datatype": "Int", "indicator": color}
+		for field, label, color in (("received_cartons", "Received (CTN)", "Blue"),
+			("dispatched_cartons", "Dispatched (CTN)", "Orange"), ("carton_count", "In Stock (CTN)", "Green"))]
