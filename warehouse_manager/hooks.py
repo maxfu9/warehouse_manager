@@ -106,6 +106,7 @@ jinja = {
 # before_install = "warehouse_manager.install.before_install"
 after_install = ["warehouse_manager.production.setup_production_fields", "warehouse_manager.setup.sync_standard_navigation", "warehouse_manager.setup.setup_v16_desk"]
 
+before_migrate = ["warehouse_manager.setup.prepare_v16_desk"]
 after_migrate = ["warehouse_manager.production.setup_production_fields", "warehouse_manager.setup.sync_standard_navigation", "warehouse_manager.setup.setup_v16_desk"]
 
 # Uninstallation

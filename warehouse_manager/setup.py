@@ -43,6 +43,14 @@ def _rename_legacy_desk_record(doctype):
 		frappe.rename_doc(doctype, APP_TITLE, DESK_TITLE, force=True)
 
 
+def prepare_v16_desk():
+	# Fixture imports enforce unique labels before after_migrate can run.
+	# Preserve the legacy records and their links by renaming them first.
+	for doctype in ("Workspace Sidebar", "Desktop Icon"):
+		if frappe.db.table_exists(doctype):
+			_rename_legacy_desk_record(doctype)
+
+
 def _sidebar_item(label, link_type, link_to=None, type="Link", icon=None, child=0, indent=0, url=None):
 	row = {
 		"type": type,
@@ -68,8 +76,7 @@ def setup_v16_desk():
 		if not frappe.db.table_exists(doctype):
 			return
 
-	for doctype in ("Workspace Sidebar", "Desktop Icon"):
-		_rename_legacy_desk_record(doctype)
+	prepare_v16_desk()
 
 	items = [
 		_sidebar_item("Dashboard", "Workspace", WORKSPACE, icon="package"),

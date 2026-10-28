@@ -41,8 +41,43 @@ class TestDeskSetup(unittest.TestCase):
 
 	def test_v15_skips_v16_records(self):
 		self.frappe.db.table_exists.return_value = False
+		self.setup.prepare_v16_desk()
 		self.setup.setup_v16_desk()
 		self.assertEqual(self.records, {})
+
+	def test_before_migrate_frees_fixture_labels_without_replacing_records(self):
+		for doctype, field in (("Desktop Icon", "label"), ("Workspace Sidebar", "title")):
+			doc = self.get_doc({"doctype": doctype, "name": self.setup.APP_TITLE,
+				"app": self.setup.APP_NAME, "standard": 1, field: self.setup.DESK_TITLE})
+			doc.insert()
+		self.setup.prepare_v16_desk()
+		self.setup.prepare_v16_desk()
+		for doctype in ("Desktop Icon", "Workspace Sidebar"):
+			self.assertNotIn((doctype, self.setup.APP_TITLE), self.records)
+			self.assertIn((doctype, self.setup.DESK_TITLE), self.records)
+		self.assertEqual(len(self.records), 2)
+		self.frappe.cache.delete_key.assert_not_called()
+
+	def test_preparation_preserves_other_apps_and_personal_records(self):
+		for overrides in ({"app": "another_app"}, {"standard": 0}, {"for_user": "user@example.com"}):
+			with self.subTest(overrides=overrides):
+				self.records.clear()
+				doc = self.get_doc({"doctype": "Workspace Sidebar", "name": self.setup.APP_TITLE,
+					"app": self.setup.APP_NAME, "standard": 1, **overrides})
+				doc.insert()
+				self.setup.prepare_v16_desk()
+				self.assertIn(("Workspace Sidebar", self.setup.APP_TITLE), self.records)
+
+	def test_prepare_hook_runs_before_fixture_import(self):
+		import ast
+		hooks = Path(__file__).resolve().parents[1] / "hooks.py"
+		assignments = {
+			node.targets[0].id: ast.literal_eval(node.value)
+			for node in ast.parse(hooks.read_text()).body
+			if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
+			and node.targets[0].id == "before_migrate"
+		}
+		self.assertIn("warehouse_manager.setup.prepare_v16_desk", assignments["before_migrate"])
 
 	def test_navigation_is_connected_and_repeatable(self):
 		self.setup.setup_v16_desk()
